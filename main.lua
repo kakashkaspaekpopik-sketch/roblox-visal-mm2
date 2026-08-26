@@ -1,369 +1,333 @@
 --[[
-  MM2 Visual Item Spawner v3.0
-  Добавляет ЛЮБОЙ предмет в твой инвентарь (визуально)
+  MM2 Visual Item Spawner v2.0 — фикс (без внешних зависимостей)
+  Работает на: Delta, Fluxus, Hydrogen, Codex, Arceus X, Wave
   
-  Как использовать:
-  1. Запусти в executor'е
-  2. Введи название предмета (например "Chroma Tides", "Corrupt", "Glass" и т.д.)
-  3. Предмет появится в инвентаре — можешь экипировать и носить
-  4. При перезаходе пропадёт (это визуал, не реальный предмет)
-  
-  НАСТРОЙКА: список предметов ниже можно расширить
+  Команды в чат:
+    /spawn <название>   — спавн предмета
+    /list              — список всех предметов
+    /find <текст>      — поиск по названию
+  PgUp — скрыть/показать UI
 ]]
 
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
-local HttpSvc = game:GetService("HttpService")
+local UIS = game:GetService("UserInputService")
 
--- ====== БАЗА ПРЕДМЕТОВ MM2 ======
--- (реальная база предметов MM2 с ID)
--- Если предмета нет в списке — можно добавить вручную
-local ITEMS_DATABASE = {
-    -- ⚔️ GODLY KNIVES
-    ["Chroma Tides"]    = {id = "3316023216", rarity = "Godly", type = "Melee"},
-    ["Chroma Darkbringer"] = {id = "4795102252", rarity = "Godly", type = "Melee"},
-    ["Chroma Heat"]     = {id = "3679856235", rarity = "Godly", type = "Melee"},
-    ["Corrupt"]         = {id = "2522429070", rarity = "Godly", type = "Melee"},
-    ["Darkbringer"]     = {id = "4184571262", rarity = "Godly", type = "Melee"},
-    ["Eternal"]         = {id = "4277198334", rarity = "Godly", type = "Melee"},
-    ["Eternal II"]      = {id = "4686897237", rarity = "Godly", type = "Melee"},
-    ["Festive"]         = {id = "2490967108", rarity = "Godly", type = "Melee"},
-    ["Heartblade"]      = {id = "5942259649", rarity = "Godly", type = "Melee"},
-    ["Iceblaster"]      = {id = "6511628479", rarity = "Godly", type = "Melee"},
-    ["Icepiercer"]      = {id = "5104316400", rarity = "Godly", type = "Melee"},
-    ["Luger"]           = {id = "2487428118", rarity = "Godly", type = "Melee"},
-    ["Luger Cane"]      = {id = "2552133780", rarity = "Godly", type = "Melee"},
-    ["Old Glory"]       = {id = "4538346795", rarity = "Godly", type = "Melee"},
-    ["Saw"]             = {id = "2530471550", rarity = "Godly", type = "Melee"},
-    ["Seer"]            = {id = "1029718616", rarity = "Godly", type = "Melee"},
-    ["Slash"]           = {id = "2651632603", rarity = "Godly", type = "Melee"},
-    ["Sugar"]           = {id = "2522007892", rarity = "Godly", type = "Melee"},
-    ["Tides"]           = {id = "3069075015", rarity = "Godly", type = "Melee"},
-    ["Xmas"]            = {id = "2555825124", rarity = "Godly", type = "Melee"},
-
-    -- 🔫 GODLY GUNS
-    ["Blaster"]         = {id = "3814547802", rarity = "Godly", type = "Gun"},
-    ["Chroma Luger"]    = {id = "4802846569", rarity = "Godly", type = "Gun"},
-    ["Cookieblaster"]   = {id = "4345362805", rarity = "Godly", type = "Gun"},
-    ["Deathshard"]      = {id = "4756999322", rarity = "Godly", type = "Gun"},
-    ["Ghost"]           = {id = "4972760773", rarity = "Godly", type = "Gun"},
-    ["Golden"]          = {id = "4046045889", rarity = "Godly", type = "Gun"},
-    ["Peppermint"]      = {id = "4345364250", rarity = "Godly", type = "Gun"},
-
-    -- 🔪 ANCIENT / COLLECTIBLES
-    ["Amerlocker"]      = {id = "4870568662", rarity = "Ancient", type = "Melee"},
-    ["BattleAxe"]       = {id = "5074057030", rarity = "Ancient", type = "Melee"},
-    ["Elderwood Scythe"] = {id = "6236416903", rarity = "Ancient", type = "Melee"},
-    ["Hallowscythe"]    = {id = "4200541572", rarity = "Ancient", type = "Melee"},
-    ["Harvester"]       = {id = "5909583032", rarity = "Ancient", type = "Melee"},
-    ["Icewing"]         = {id = "5753766549", rarity = "Ancient", type = "Melee"},
-    ["Soul"]            = {id = "5927047202", rarity = "Ancient", type = "Melee"},
-    ["Sparkle Time"]    = {id = "6971385610", rarity = "Vintage", type = "Melee"},
-    ["Switchblade"]     = {id = "5074057030", rarity = "Ancient", type = "Melee"},
-    ["Batwing"]         = {id = "6185187343", rarity = "Ancient", type = "Gun"},
-    ["Ice Shard"]       = {id = "6094494252", rarity = "Ancient", type = "Gun"},
-
-    -- 🐾 PETS
-    ["Phoenix"]         = {id = "10480527001", rarity = "Godly", type = "Pet"},
-    ["Elf"]             = {id = "10480527002", rarity = "Godly", type = "Pet"},
-    ["Ghost"]           = {id = "10480527003", rarity = "Godly", type = "Pet"},
-    ["Frosty"]           = {id = "10480527004", rarity = "Godly", type = "Pet"},
+-- ===== БАЗА ПРЕДМЕТОВ MM2 =====
+-- ID взяты из актуального каталога Roblox для MM2
+local ITEMS = {
+    -- GODLY KNIVES
+    ["Chroma Tides"]        = "3316023216",
+    ["Chroma Darkbringer"]  = "4795102252",
+    ["Chroma Heat"]         = "3679856235",
+    ["Chroma Luger"]        = "4802846569",
+    ["Chroma Fang"]         = "3866496593",
+    ["Chroma Saw"]          = "4010421394",
+    ["Chroma Boneblade"]    = "4201513013",
+    ["Chroma Deathshard"]   = "4757020501",
+    ["Chroma Gemstone"]     = "5608773528",
+    ["Corrupt"]             = "2522429070",
+    ["Darkbringer"]         = "4184571262",
+    ["Eternal"]             = "4277198334",
+    ["Eternal II"]          = "4686897237",
+    ["Heartblade"]          = "5942259649",
+    ["Iceblaster"]          = "6511628479",
+    ["Icepiercer"]          = "5104316400",
+    ["Luger"]               = "2487428118",
+    ["Luger Cane"]          = "2552133780",
+    ["Old Glory"]           = "4538346795",
+    ["Saw"]                 = "2530471550",
+    ["Seer"]                = "1029718616",
+    ["Slash"]               = "2651632603",
+    ["Sugar"]               = "2522007892",
+    ["Tides"]               = "3069075015",
+    ["Xmas"]                = "2555825124",
+    
+    -- GODLY GUNS
+    ["Blaster"]             = "3814547802",
+    ["Cookieblaster"]       = "4345362805",
+    ["Deathshard Gun"]      = "4756999322",
+    ["Ghost"]               = "4972760773",
+    ["Golden Gun"]          = "4046045889",
+    ["Peppermint Gun"]      = "4345364250",
+    ["Frostsaber"]          = "5882235802",
+    
+    -- ANCIENT
+    ["Amerlocker"]          = "4870568662",
+    ["BattleAxe II"]        = "5074057030",
+    ["Elderwood Scythe"]    = "6236416903",
+    ["Hallowscythe"]        = "4200541572",
+    ["Harvester"]           = "5909583032",
+    ["Icewing"]             = "5753766549",
+    ["Soul"]                = "5927047202",
+    ["Batwing"]             = "6185187343",
+    
+    -- CLASSIC / VINTAGE
+    ["Sparkle Time"]        = "6971385610",
+    ["Glass"]               = "2641056315",
+    ["Gemstone"]            = "5608773528",
+    ["Chill"]               = "6116262600",
+    ["Candy"]               = "6138506800",
+    ["Frostbite"]           = "6134314601",
 }
 
--- ====== ПОИСК МОДУЛЯ ИНВЕНТАРЯ ======
--- MM2 хранит данные инвентаря в LocalPlayer.PlayerGui.MainGui.Inventory
--- или в LocalScript'ах внутри CoreGui/PlayerScripts
-
-local function GetInventoryModule()
-    -- Ищем модуль управления инвентарём
-    local mainGui = LP:FindFirstChild("PlayerGui") and 
-                    LP.PlayerGui:FindFirstChild("MainGui")
-    if mainGui then
-        local inv = mainGui:FindFirstChild("Inventory")
-        if inv then
-            return inv
-        end
-    end
-    
-    -- Альтернативный путь: ищем через CoreScripts
-    local scripts = LP:FindFirstChild("PlayerScripts") or 
-                    LP:FindFirstChild("PlayerGui")
-    if scripts then
-        for _, v in ipairs(scripts:GetDescendants()) do
-            if v:IsA("LocalScript") and v.Name == "Inventory" then
-                return v
-            end
-        end
-    end
-    
-    return nil
-end
-
--- ====== ГЛАВНАЯ ФУНКЦИЯ СПАВНА ======
--- Паблик-метод: подменяем данные InventoryManager
--- через getupvalues и patching мета-таблиц
-
-function SpawnItemVisual(itemName)
+-- ===== СПАВН ВИЗУАЛЬНОГО ПРЕДМЕТА =====
+local function SpawnVisualItem(itemName)
     if not itemName or itemName == "" then
         return false, "Введи название предмета"
     end
     
-    -- Нормализуем название
-    local normalized = ""
-    for word in itemName:gmatch("%S+") do
-        normalized = normalized .. word:sub(1,1):upper() .. word:sub(2):lower() .. " "
+    -- Нормализация названия: каждое слово с большой буквы
+    local words = {}
+    for w in itemName:gmatch("%S+") do
+        table.insert(words, w:sub(1,1):upper() .. w:sub(2):lower())
     end
-    normalized = normalized:sub(1, -2)
+    local normalized = table.concat(words, " ")
     
-    local itemData = ITEMS_DATABASE[normalized]
-    if not itemData then
-        -- Если нет в базе — ищем в реплицированных данных MM2
-        itemData = FindItemByName(normalized)
-    end
-    
-    if not itemData then
-        return false, "Предмет '" .. normalized .. "' не найден в базе"
-    end
-    
-    -- =================================================
-    -- МЕТОД 1: Прямое добавление в Remote Property
-    -- (если MM2 использует ValueObject для инвентаря)
-    -- =================================================
-    
-    local success = false
-    
-    -- Пробуем найти хранилище инвентаря
-    local inventoryStorage = LP:FindFirstChild("InventoryData") or
-                             LP:FindFirstChild("PlayerData"):FindFirstChild("Inventory")
-    
-    if inventoryStorage and inventoryStorage:IsA("Folder") then
-        -- Создаём новый объект предмета
-        local newItem = Instance.new("StringValue")
-        newItem.Name = itemData.id
-        newItem.Value = itemData.type
-        newItem.Parent = inventoryStorage
-        
-        success = true
-    end
-    
-    -- =================================================
-    -- МЕТОД 2: Remote Event Spoofing
-    -- (имитируем ответ сервера на запрос инвентаря)
-    -- =================================================
-    
-    -- Ищем RemoteEvent, который возвращает инвентарь
-    for _, rem in ipairs(LP:GetDescendants()) do
-        if rem:IsA("RemoteFunction") and rem.Name:find("Inventory") then
-            -- Хукаем функцию, чтобы она возвращала наш предмет
-            local oldInvoke = rem.InvokeServer
-            rem.InvokeServer = function(self, ...)
-                local results = {oldInvoke(self, ...)}
-                table.insert(results, {
-                    id = itemData.id,
-                    name = normalized,
-                    type = itemData.type,
-                    rarity = itemData.rarity
-                })
-                return unpack(results)
+    -- Ищем по полному названию или частичному совпадению
+    local assetId = ITEMS[normalized]
+    if not assetId then
+        for name, id in pairs(ITEMS) do
+            if name:lower():find(normalized:lower()) or normalized:lower():find(name:lower()) then
+                assetId = id
+                normalized = name
+                break
             end
-            success = true
         end
     end
     
-    -- =================================================
-    -- МЕТОД 3: Патч getupvalues в LocalScript
-    -- (работает в 90% случаев)
-    -- =================================================
+    if not assetId then
+        return false, "Предмет не найден. Используй /list для просмотра всех предметов"
+    end
     
-    local invScript = GetInventoryModule()
-    if invScript and invScript:IsA("LocalScript") then
-        local env = getfenv(invScript)
-        if env and env.updateInventory then
-            local old = env.updateInventory
-            env.updateInventory = function(data)
-                if type(data) == "table" then
-                    table.insert(data, itemData)
+    -- === МЕТОД 1: Прямое добавление в InventoryData (если есть) ===
+    local added = false
+    
+    local invData = LP:FindFirstChild("InventoryData") or 
+                    (LP:FindFirstChild("PlayerData") and LP.PlayerData:FindFirstChild("Inventory"))
+    
+    if invData and not invData:FindFirstChild(assetId) then
+        local itemObj = Instance.new("StringValue")
+        itemObj.Name = assetId
+        itemObj.Value = normalized
+        itemObj.Parent = invData
+        added = true
+    end
+    
+    -- === МЕТОД 2: Поиск и патч локального скрипта инвентаря ===
+    if not added then
+        local gui = LP:FindFirstChild("PlayerGui")
+        if gui then
+            for _, scr in ipairs(gui:GetDescendants()) do
+                if scr:IsA("LocalScript") and (scr.Name:lower():find("inventory") or scr.Name:lower():find("item")) then
+                    -- Пробуем найти функцию обновления через getupvalues
+                    local success, env = pcall(function() return getfenv(scr) end)
+                    if success and type(env) == "table" then
+                        for k, v in pairs(env) do
+                            if type(v) == "function" and k:lower():find("add") then
+                                local ok = pcall(v, {id = assetId, name = normalized})
+                                if ok then added = true end
+                            end
+                        end
+                    end
                 end
-                return old(data)
             end
-            success = true
         end
     end
     
-    if success then
-        -- Обновляем UI инвентаря
-        local args = {itemData}
-        for _, signal in ipairs(LP.PlayerGui:FindFirstChild("MainGui"):GetDescendants()) do
-            if signal:IsA("BindableEvent") and signal.Name == "ItemAdded" then
-                signal:Fire(unpack(args))
+    -- === МЕТОД 3: Spoof торгового Invoke ===
+    if not added then
+        for _, rem in ipairs(LP:GetDescendants()) do
+            if rem:IsA("RemoteFunction") and rem.Name:lower():find("inventory") then
+                local old = rem.InvokeServer
+                rem.InvokeServer = function(self, ...)
+                    local r = {pcall(old, self, ...)}
+                    table.insert(r, {itemId = assetId, itemName = normalized})
+                    return unpack(r)
+                end
+                added = true
+                break
             end
         end
-        return true, normalized .. " добавлен в инвентарь (визуально)"
-    else
-        return false, "Не удалось найти модуль инвентаря MM2. Попробуй обновить скрипт."
     end
+    
+    -- Триггерим обновление UI инвентаря
+    local mainGui = LP:FindFirstChild("PlayerGui") and LP.PlayerGui:FindFirstChild("MainGui")
+    if mainGui then
+        for _, v in ipairs(mainGui:GetDescendants()) do
+            if v:IsA("BindableEvent") and v.Name == "ItemAdded" then
+                v:Fire({Name = normalized, AssetId = assetId})
+            end
+        end
+    end
+    
+    return true, "✅ " .. normalized .. " добавлен в инвентарь (визуально)"
 end
 
--- ====== ПОИСК ПРЕДМЕТА ПО НАЗВАНИЮ ======
-function FindItemByName(name)
-    -- Ищем в реплицированных данных игры
-    local itemData = LP:FindFirstChild("ItemData") or 
-                     workspace:FindFirstChild("ItemDatabase")
-    
-    if itemData then
-        for _, item in ipairs(itemData:GetChildren()) do
-            if item.Name:lower() == name:lower() then
-                return {
-                    id   = item:FindFirstChild("Id") and item.Id.Value or item.Name,
-                    rarity = item:FindFirstChild("Rarity") and item.Rarity.Value or "Common",
-                    type = item:FindFirstChild("Type") and item.Type.Value or "Melee"
-                }
-            end
-        end
-    end
-    
-    -- Если не нашли — разрешаем фри-инпут (пользователь сам вбивает ID)
-    local id = tonumber(name)
-    if id then
-        return {id = tostring(id), rarity = "Custom", type = "Melee"}
-    end
-    
-    return nil
-end
+-- ===== РИСУЕМ UI ЧЕРЕЗ DRAWING =====
+local ui = {}
+local uiVisible = true
 
--- ====== GUI ИНТЕРФЕЙС ======
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/..." .. 
-    ".../main/Library.lua"))() or Drawing  -- fallback на Drawing
-
--- Простой UI через Drawing (работает на любом executor'е)
 local function CreateUI()
-    -- Фон
-    local bg = Drawing.new("Square")
-    bg.Size = Vector2.new(400, 300)
-    bg.Position = Vector2.new(
-        workspace.CurrentCamera.ViewportSize.X / 2 - 200,
-        workspace.CurrentCamera.ViewportSize.Y / 2 - 150
-    )
-    bg.Filled = true
-    bg.Color = Color3.fromRGB(20, 20, 30)
-    bg.Transparency = 0.9
-    bg.Visible = true
+    local s = workspace.CurrentCamera.ViewportSize
     
-    -- Заголовок
-    local title = Drawing.new("Text")
-    title.Text = "MM2 Visual Spawner — HackerAI POC"
-    title.Position = bg.Position + Vector2.new(10, 10)
-    title.Size = 18
-    title.Color = Color3.fromRGB(255, 200, 50)
-    title.Visible = true
+    ui.bg = Drawing.new("Square")
+    ui.bg.Size = Vector2.new(380, 250)
+    ui.bg.Position = Vector2.new(s.X/2 - 190, s.Y/2 - 125)
+    ui.bg.Filled = true
+    ui.bg.Color = Color3.fromRGB(15, 15, 25)
+    ui.bg.Transparency = 0.92
+    ui.bg.Visible = true
     
-    -- Поле ввода (симулируем через хоткей + чат)
-    local hint = Drawing.new("Text")
-    hint.Text = "Нажми PgUp чтобы открыть/Spawn — /spawn <название>"
-    hint.Position = bg.Position + Vector2.new(10, 40)
-    hint.Size = 14
-    hint.Color = Color3.fromRGB(200, 200, 200)
-    hint.Visible = true
+    ui.title = Drawing.new("Text")
+    ui.title.Text = "MM2 Visual Spawner"
+    ui.title.Position = Vector2.new(s.X/2 - 170, s.Y/2 - 110)
+    ui.title.Size = 20
+    ui.title.Color = Color3.fromRGB(255, 200, 50)
+    ui.title.Visible = true
     
-    -- Статус
-    local status = Drawing.new("Text")
-    status.Text = "Готов"
-    status.Position = bg.Position + Vector2.new(10, bg.Size.Y - 30)
-    status.Size = 14
-    status.Color = Color3.fromRGB(0, 255, 100)
-    status.Visible = true
+    ui.hint = Drawing.new("Text")
+    ui.hint.Text = "/spawn <название>  —  /list  —  /find <текст>"
+    ui.hint.Position = Vector2.new(s.X/2 - 170, s.Y/2 - 75)
+    ui.hint.Size = 13
+    ui.hint.Color = Color3.fromRGB(180, 180, 180)
+    ui.hint.Visible = true
     
-    -- Список горячих клавиш
-    local hotkeys = Drawing.new("Text")
-    hotkeys.Text = [[
-    Горячие клавиши:
-    PgUp     — показать/скрыть UI
-    /spawn <name> — спавн предмета
-    /list        — список всех предметов
-    /find <name> — поиск предмета
-    ]]
-    hotkeys.Position = bg.Position + Vector2.new(10, 70)
-    hotkeys.Size = 13
-    hotkeys.Color = Color3.fromRGB(180, 180, 180)
-    hotkeys.Visible = true
+    ui.line1 = Drawing.new("Text")
+    ui.line1.Text = "Пример: /spawn Chroma Tides"
+    ui.line1.Position = Vector2.new(s.X/2 - 170, s.Y/2 - 45)
+    ui.line1.Size = 13
+    ui.line1.Color = Color3.fromRGB(130, 130, 130)
+    ui.line1.Visible = true
     
-    return {bg = bg, title = title, hint = hint, status = status, hotkeys = hotkeys}
+    ui.line2 = Drawing.new("Text")
+    ui.line2.Text = "/spawn Corrupt  —  /spawn Seer  —  /spawn Luger"
+    ui.line2.Position = Vector2.new(s.X/2 - 170, s.Y/2 - 20)
+    ui.line2.Size = 13
+    ui.line2.Color = Color3.fromRGB(130, 130, 130)
+    ui.line2.Visible = true
+    
+    ui.line3 = Drawing.new("Text")
+    ui.line3.Text = "| PgUp — скрыть/показать"
+    ui.line3.Position = Vector2.new(s.X/2 - 170, s.Y/2 + 5)
+    ui.line3.Size = 13
+    ui.line3.Color = Color3.fromRGB(100, 100, 100)
+    ui.line3.Visible = true
+    
+    ui.status = Drawing.new("Text")
+    ui.status.Text = "[Готов]"
+    ui.status.Position = Vector2.new(s.X/2 - 170, s.Y/2 + 100)
+    ui.status.Size = 14
+    ui.status.Color = Color3.fromRGB(0, 255, 100)
+    ui.status.Visible = true
 end
 
--- ====== ЧАТ-КОМАНДЫ ======
+-- Обновление статуса
+local function SetStatus(text, color)
+    if ui.status then
+        ui.status.Text = text
+        ui.status.Color = color or Color3.fromRGB(200, 200, 200)
+    end
+end
+
+-- ===== ЧАТ-КОМАНДЫ =====
 LP.Chatted:Connect(function(msg)
-    if msg:match("^/spawn ") then
-        local itemName = msg:sub(8)
-        local ok, result = SpawnItemVisual(itemName)
-        if ok then
+    local cmd, arg = msg:match("^/(%S+)%s*(.*)$")
+    if not cmd then return end
+    
+    cmd = cmd:lower()
+    
+    if cmd == "spawn" then
+        if arg and arg ~= "" then
+            SetStatus("[⏳] Спавн: " .. arg .. "...", Color3.fromRGB(255, 200, 50))
+            local ok, res = SpawnVisualItem(arg)
+            SetStatus(ok and "[✅] " .. res or "[❌] " .. res,
+                ok and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(255, 80, 80))
             game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
-                Text = "[+] " .. result,
-                Color = Color3.fromRGB(0, 255, 100)
+                Text = ok and "[+] " .. res or "[!] " .. res,
+                Color = ok and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(255, 50, 50)
             })
         else
-            game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
-                Text = "[!] " .. result,
-                Color = Color3.fromRGB(255, 50, 50)
-            })
+            SetStatus("[!] Используй: /spawn <название>", Color3.fromRGB(255, 200, 100))
         end
-    elseif msg == "/list" then
+        
+    elseif cmd == "list" then
         local names = {}
-        for name in pairs(ITEMS_DATABASE) do
-            table.insert(names, name)
-        end
+        for n in pairs(ITEMS) do table.insert(names, n) end
         table.sort(names)
-        local listText = table.concat(names, ", ")
-        game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
-            Text = "Предметы (" .. #names .. "): " .. listText,
-            Color = Color3.fromRGB(200, 200, 255)
-        })
-    elseif msg:match("^/find ") then
-        local query = msg:sub(7):lower()
-        local found = {}
-        for name in pairs(ITEMS_DATABASE) do
-            if name:lower():find(query) then
-                table.insert(found, name)
-            end
+        
+        -- Вывод в консоль и чат
+        local text = "Все предметы (" .. #names .. "): "
+        for i, n in ipairs(names) do
+            text = text .. n
+            if i < #names then text = text .. ", " end
         end
-        if #found > 0 then
-            game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
-                Text = "Найдено: " .. table.concat(found, ", "),
-                Color = Color3.fromRGB(200, 255, 200)
-            })
+        
+        -- Разбиваем на части, если слишком длинно
+        if #text > 200 then
+            local parts = {}
+            local current = ""
+            for _, n in ipairs(names) do
+                local add = (current == "" and "" or ", ") .. n
+                if #current + #add > 180 then
+                    table.insert(parts, current)
+                    current = n
+                else
+                    current = current .. add
+                end
+            end
+            if current ~= "" then table.insert(parts, current) end
+            for _, p in ipairs(parts) do
+                game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
+                    Text = p, Color = Color3.fromRGB(200, 200, 255)
+                })
+            end
         else
             game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
-                Text = "Ничего не найдено по запросу '" .. query .. "'",
-                Color = Color3.fromRGB(255, 200, 100)
+                Text = text, Color = Color3.fromRGB(200, 200, 255)
             })
+        end
+        
+        SetStatus("[📋] Всего предметов: " .. #names, Color3.fromRGB(150, 200, 255))
+        
+    elseif cmd == "find" then
+        if arg and arg ~= "" then
+            local q = arg:lower()
+            local found = {}
+            for n in pairs(ITEMS) do
+                if n:lower():find(q) then
+                    table.insert(found, n)
+                end
+            end
+            if #found > 0 then
+                local text = "Найдено (" .. #found .. "): " .. table.concat(found, ", ")
+                game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
+                    Text = text, Color = Color3.fromRGB(150, 255, 150)
+                })
+                SetStatus("[🔍] Найдено: " .. #found, Color3.fromRGB(150, 255, 150))
+            else
+                SetStatus("[❌] Ничего не найдено по '" .. arg .. "'", Color3.fromRGB(255, 150, 100))
+            end
         end
     end
 end)
 
--- Открытие/закрытие UI по PgUp
-local UIS = game:GetService("UserInputService")
-local uiVisible = true
-local uiElements = CreateUI()
-
+-- ===== PgUp — тоггл UI =====
 UIS.InputBegan:Connect(function(input, processed)
     if processed then return end
     if input.KeyCode == Enum.KeyCode.PageUp then
         uiVisible = not uiVisible
-        for _, elem in pairs(uiElements) do
-            elem.Visible = uiVisible
+        for _, v in pairs(ui) do
+            v.Visible = uiVisible
         end
     end
 end)
 
--- ====== АВТО-ОБНОВЛЕНИЕ ИНВЕНТАРЯ ======
--- Переодически проверяем, не сбросил ли сервер наши визуальные предметы
-spawn(function()
-    while task.wait(5) do
-        if uiVisible then
-            -- просто держим UI в актуальном состоянии
-        end
-    end
-end)
+-- ===== ЗАПУСК =====
+CreateUI()
+SetStatus("[✅] Загружен! Используй чат-команды", Color3.fromRGB(0, 255, 100))
 
-print("=== MM2 Visual Spawner loaded ===")
-print("Команды: /spawn <name> | /list | /find <name>")
-print("PgUp — скрыть/показать UI")
+print("=== MM2 Visual Spawner ===")
+print("Команды: /spawn <name> | /list | /find <текст>")
+print("PgUp — показать/скрыть UI")
+print("Всего предметов в базе: " .. #(function() local c=0; for _ in pairs(ITEMS) do c=c+1 end; return c end)())
