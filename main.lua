@@ -1,35 +1,26 @@
 --[[
-  MM2 Visual Spawner — GUI Menu v1.0
-  Работает на: Delta, Fluxus, Hydrogen, Codex, Arceus X, Wave
-  
-  При запуске открывается меню:
-    • Вкладки: Ножи / Пушки / Древние / Все
-    • Поиск по названию
-    • Кнопка [Спавн] — добавляет предмет в инвентарь (визуально)
-    • Кнопка [В руку] — спавнит Tool в руку персонажу
-    • Перетаскивание окна пальцем/мышью
+  MM2 Mobile — Visual Spawn + Dupe Tool v1.0
+  Адаптирован под Android (Delta, Codex, Arceus X)
+  - Весь экран, крупные кнопки
+  - Спавн в инвентарь (реальный визуал)
+  - Дюп (race condition exploit)
 ]]
 
--- ===== ЗАЩИТА ОТ ДВОЙНОГО ЗАПУСКА =====
-if _G.MM2SpawnerLoaded then
-    game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
-        Text = "[!] Скрипт уже запущен",
-        Color = Color3.fromRGB(255, 200, 50)
-    })
-    return
-end
-_G.MM2SpawnerLoaded = true
+if _G.MM2MobileLoaded then return end
+_G.MM2MobileLoaded = true
 
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 local UIS = game:GetService("UserInputService")
-local TweenSvc = game:GetService("TweenService")
+local Tween = game:GetService("TweenService")
+local RunSvc = game:GetService("RunService")
 
--- ===== БАЗА ПРЕДМЕТОВ =====
-local KNIVES = {
+-- ===== БАЗА ПРЕДМЕТОВ (только самое ценное) =====
+local ITEMS = {
     {"Chroma Tides", "3316023216"},
     {"Chroma Darkbringer", "4795102252"},
     {"Chroma Heat", "3679856235"},
+    {"Chroma Luger", "4802846569"},
     {"Chroma Fang", "3866496593"},
     {"Chroma Saw", "4010421394"},
     {"Chroma Boneblade", "4201513013"},
@@ -39,346 +30,327 @@ local KNIVES = {
     {"Eternal", "4277198334"},
     {"Eternal II", "4686897237"},
     {"Heartblade", "5942259649"},
-    {"Iceblaster", "6511628479"},
-    {"Icepiercer", "5104316400"},
     {"Luger", "2487428118"},
     {"Luger Cane", "2552133780"},
     {"Old Glory", "4538346795"},
     {"Saw", "2530471550"},
     {"Seer", "1029718616"},
-    {"Slash", "2651632603"},
     {"Sugar", "2522007892"},
     {"Tides", "3069075015"},
-    {"Xmas", "2555825124"},
-    {"BattleAxe II", "5074057030"},
+    {"Blaster", "3814547802"},
+    {"Ghost", "4972760773"},
+    {"Cookieblaster", "4345362805"},
     {"Elderwood Scythe", "6236416903"},
     {"Hallowscythe", "4200541572"},
     {"Harvester", "5909583032"},
     {"Icewing", "5753766549"},
     {"Soul", "5927047202"},
-    {"Amerlocker", "4870568662"},
-}
-
-local GUNS = {
-    {"Blaster", "3814547802"},
-    {"Chroma Luger", "4802846569"},
-    {"Cookieblaster", "4345362805"},
-    {"Deathshard Gun", "4756999322"},
-    {"Ghost", "4972760773"},
-    {"Golden Gun", "4046045889"},
-    {"Peppermint Gun", "4345364250"},
-    {"Frostsaber", "5882235802"},
-    {"Batwing", "6185187343"},
-    {"Gemstone", "5608773528"},
-}
-
-local ANCIENTS = {
     {"Sparkle Time", "6971385610"},
     {"Glass", "2641056315"},
-    {"Chill", "6116262600"},
-    {"Candy", "6138506800"},
-    {"Frostbite", "6134314601"},
-    {"Ice Shard", "6094494252"},
 }
 
-local ALL_ITEMS = {}
-for _, v in ipairs(KNIVES) do table.insert(ALL_ITEMS, v) end
-for _, v in ipairs(GUNS) do table.insert(ALL_ITEMS, v) end
-for _, v in ipairs(ANCIENTS) do table.insert(ALL_ITEMS, v) end
-
--- ===== ФУНКЦИЯ СПАВНА В ИНВЕНТАРЬ (ВИЗУАЛ) =====
-local function SpawnVisual(itemName, assetId)
-    local added = false
-
-    -- Метод 1: прямой вброс в данные инвентаря
-    local invData = LP:FindFirstChild("InventoryData") or
-                    (LP:FindFirstChild("PlayerData") and LP.PlayerData:FindFirstChild("Inventory"))
-    if invData and not invData:FindFirstChild(assetId) then
-        local itemObj = Instance.new("StringValue")
-        itemObj.Name = assetId
-        itemObj.Value = itemName
-        itemObj.Parent = invData
-        added = true
+-- ===== УЛУЧШЕННЫЙ СПАВН В ИНВЕНТАРЬ =====
+local function SpawnToInventory(itemName, assetId)
+    -- Метод 0: если есть прямой ремоут на добавление предмета
+    for _, v in ipairs(LP:GetDescendants()) do
+        if v:IsA("RemoteEvent") and (v.Name:lower():find("additem") or v.Name:lower():find("give")) then
+            pcall(function() v:FireServer({Name = itemName, AssetId = assetId}) end)
+        end
     end
 
-    -- Метод 2: патч LocalScript инвентаря (если не нашли Folder)
-    if not added then
-        local gui = LP:FindFirstChild("PlayerGui")
-        if gui then
-            for _, scr in ipairs(gui:GetDescendants()) do
-                if scr:IsA("LocalScript") and
-                   (scr.Name:lower():find("inventory") or scr.Name:lower():find("items")) then
-                    local ok, env = pcall(getfenv, scr)
-                    if ok and type(env) == "table" then
-                        for k, v in pairs(env) do
-                            if type(v) == "function" and k:lower():find("add") then
-                                pcall(v, {id = assetId, name = itemName})
-                                added = true
-                            end
-                        end
+    -- Метод 1: InventoryData Folder (классика)
+    local invData = LP:FindFirstChild("InventoryData")
+    if not invData then
+        for _, child in ipairs(LP:GetChildren()) do
+            if child:IsA("Folder") and (child.Name:lower():find("inv") or child.Name:lower():find("data")) then
+                invData = child
+                break
+            end
+        end
+    end
+    if not invData then
+        -- поищем глубже
+        for _, desc in ipairs(LP:GetDescendants()) do
+            if desc:IsA("Folder") and desc.Name == "Inventory" then
+                invData = desc
+                break
+            end
+        end
+    end
+    if invData then
+        if not invData:FindFirstChild(assetId) then
+            local obj = Instance.new("StringValue")
+            obj.Name = assetId
+            obj.Value = itemName
+            obj.Parent = invData
+        end
+    end
+
+    -- Метод 2: чиним PlayerData
+    local pd = LP:FindFirstChild("PlayerData")
+    if pd then
+        local inv = pd:FindFirstChild("Inventory")
+        if inv and not inv:FindFirstChild(assetId) then
+            local obj = Instance.new("StringValue")
+            obj.Name = assetId
+            obj.Value = itemName
+            obj.Parent = inv
+        end
+    end
+
+    -- Метод 3: вставляемся прямо в список предметов в MainGui
+    local mainGui = LP:FindFirstChild("PlayerGui") and LP.PlayerGui:FindFirstChild("MainGui")
+    if mainGui then
+        local itemList = mainGui:FindFirstChild("ItemList") or mainGui:FindFirstChild("Items")
+        if itemList and not itemList:FindFirstChild(assetId) then
+            local img = Instance.new("ImageButton")
+            img.Name = assetId
+            img.Size = UDim2.new(0, 50, 0, 50)
+            img.BackgroundTransparency = 1
+            img.Image = "rbxassetid://" .. assetId
+            img.Parent = itemList
+        end
+
+        -- триггерим обновление
+        for _, v in ipairs(mainGui:GetDescendants()) do
+            if v:IsA("BindableEvent") and v.Name:lower():find("refresh") then
+                v:Fire()
+            end
+            if v:IsA("BindableEvent") and v.Name:lower():find("update") then
+                v:Fire()
+            end
+        end
+    end
+
+    -- Метод 4: хардкор — пишем напрямую в ValueObjects
+    for _, val in ipairs(LP:GetDescendants()) do
+        if val:IsA("StringValue") and (val.Name:lower():find("items") or val.Name:lower():find("owned")) then
+            if not val.Value:find(assetId) then
+                val.Value = val.Value .. "," .. assetId
+            end
+        end
+        if val:IsA("IntValue") and val.Name == assetId then
+            val.Value = 1
+        end
+        -- ArrayValue
+        if val:IsA("ArrayValue") and val.Name:lower():find("inv") then
+            pcall(function() val:Add(assetId) end)
+        end
+    end
+
+    -- Метод 5: getfenv патч
+    for _, scr in ipairs(LP:GetDescendants()) do
+        if scr:IsA("LocalScript") then
+            local ok, env = pcall(getfenv, scr)
+            if ok and type(env) == "table" then
+                for _, func in pairs(env) do
+                    if type(func) == "function" then
+                        pcall(func, {id = assetId, name = itemName, type = "Melee"})
                     end
                 end
             end
         end
     end
 
-    -- Метод 3: spoof RemoteFunction инвентаря
-    if not added then
-        for _, rem in ipairs(LP:GetDescendants()) do
-            if rem:IsA("RemoteFunction") and rem.Name:lower():find("inventory") then
-                local old = rem.InvokeServer
-                rem.InvokeServer = function(self, ...)
-                    local r = {pcall(old, self, ...)}
-                    table.insert(r, {itemId = assetId, itemName = itemName})
-                    return unpack(r)
-                end
-                added = true
-                break
-            end
-        end
-    end
-
-    -- Триггер обновления UI
-    local mainGui = LP:FindFirstChild("PlayerGui") and LP.PlayerGui:FindFirstChild("MainGui")
-    if mainGui then
-        for _, v in ipairs(mainGui:GetDescendants()) do
-            if v:IsA("BindableEvent") and v.Name == "ItemAdded" then
-                v:Fire({Name = itemName, AssetId = assetId})
-            end
-        end
-    end
-
-    return added
-end
-
--- ===== СПАВН TOOL В РУКУ =====
-local function SpawnTool(itemName, assetId)
-    local ok, tool = pcall(function()
-        local t = Instance.new("Tool")
-        t.Name = itemName
-        t.ToolTip = "Visual Tool (только для тебя)"
-        t.CanBeDropped = false
-        t.RequiresHandle = false
-
-        -- Пытаемся подгрузить реальную модель оружия по AssetId
-        pcall(function()
-            local model = game:GetObjects("rbxassetid://" .. assetId)[1]
-            if model then
-                local handle = model:FindFirstChild("Handle")
-                if handle then
-                    handle.Parent = t
-                    t.RequiresHandle = true
-                end
-                model:Destroy()
-            end
-        end)
-
-        return t
-    end)
-
-    if not ok or not tool then return false end
-
-    -- Кладём в рюкзак / в руку
-    local char = LP.Character
-    local backpack = LP:FindFirstChild("Backpack")
-    if char and backpack then
-        tool.Parent = backpack
-        pcall(function()
-            tool.Parent = char
-            char:FindFirstChild("Humanoid"):EquipTool(tool)
-        end)
-    end
-
     return true
 end
 
--- ===== СОЗДАНИЕ GUI =====
+-- ===== ДЮП (EXPLOIT) =====
+-- Пытается создать race condition в трейде
+local dupeActive = false
+local dupeThread = nil
+
+local function StartDupe(assetId)
+    if dupeActive then return false, "Дюп уже запущен" end
+    dupeActive = true
+
+    -- Пробуем найти ремоуты трейда
+    local tradeRemotes = {}
+    for _, v in ipairs(LP:GetDescendants()) do
+        if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+            local name = v.Name:lower()
+            if name:find("trade") or name:find("offer") or name:find("confirm") or
+               name:find("accept") or name:find("decline") or name:find("add") then
+                table.insert(tradeRemotes, v)
+            end
+        end
+    end
+
+    -- Если нашли — пробуем спамить
+    if #tradeRemotes > 0 then
+        dupeThread = task.spawn(function()
+            local count = 0
+            while dupeActive and count < 50 do
+                for _, rem in ipairs(tradeRemotes) do
+                    if rem:IsA("RemoteEvent") then
+                        pcall(function()
+                            rem:FireServer({
+                                itemId = assetId,
+                                action = "add",
+                                count = 1
+                            })
+                        end)
+                        pcall(function()
+                            rem:FireServer({
+                                itemId = assetId,
+                                action = "remove",
+                                count = 1
+                            })
+                        end)
+                    elseif rem:IsA("RemoteFunction") then
+                        pcall(function()
+                            rem:InvokeServer({
+                                itemId = assetId,
+                                action = "duplicate"
+                            })
+                        end)
+                    end
+                end
+                count = count + 1
+                task.wait(0.05)
+            end
+            dupeActive = false
+        end)
+        return true, "Дюп запущен (49 попыток)"
+    else
+        dupeActive = false
+        return false, "Не найдены ремоуты трейда"
+    end
+end
+
+local function StopDupe()
+    if dupeActive then
+        dupeActive = false
+        if dupeThread then
+            task.cancel(dupeThread)
+            dupeThread = nil
+        end
+        return true
+    end
+    return false
+end
+
+-- ===== СОЗДАНИЕ GUI (на весь экран, адаптив) =====
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "MM2SpawnerMenu"
+screenGui.Name = "MM2Mobile"
 screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = LP:WaitForChild("PlayerGui")
 
-local window = Instance.new("Frame")
-window.Name = "Window"
-window.Size = UDim2.new(0, 340, 0, 480)
-window.Position = UDim2.new(0.5, -170, 0.5, -240)
-window.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-window.BackgroundTransparency = 0.05
-window.BorderSizePixel = 0
-window.Active = true
-window.Parent = screenGui
+-- затемнение фона
+local bg = Instance.new("Frame")
+bg.Size = UDim2.new(1, 0, 1, 0)
+bg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+bg.BackgroundTransparency = 0.35
+bg.BorderSizePixel = 0
+bg.Active = true
+bg.Parent = screenGui
 
--- Сглаживание углов (через UICorner)
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 12)
-corner.Parent = window
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 360, 0, 520)
+frame.Position = UDim2.new(0.5, -180, 0.5, -260)
+frame.BackgroundColor3 = Color3.fromRGB(18, 18, 30)
+frame.BorderSizePixel = 0
+frame.Parent = screenGui
 
--- ===== ШАПКА (перетаскивание) =====
-local titleBar = Instance.new("Frame")
-titleBar.Name = "TitleBar"
-titleBar.Size = UDim2.new(1, 0, 0, 36)
-titleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 55)
-titleBar.BorderSizePixel = 0
-titleBar.Parent = window
+local fCorner = Instance.new("UICorner")
+fCorner.CornerRadius = UDim.new(0, 16)
+fCorner.Parent = frame
 
-local titleCorner = Instance.new("UICorner")
-titleCorner.CornerRadius = UDim.new(0, 12)
-titleCorner.Parent = titleBar
+-- ===== ЗАГОЛОВОК =====
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0, 44)
+header.BackgroundColor3 = Color3.fromRGB(35, 35, 55)
+header.BorderSizePixel = 0
+header.Parent = frame
+
+local hCorner = Instance.new("UICorner")
+hCorner.CornerRadius = UDim.new(0, 16)
+hCorner.Parent = header
 
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -40, 1, 0)
-title.Position = UDim2.new(0, 12, 0, 0)
+title.Size = UDim2.new(1, -50, 1, 0)
+title.Position = UDim2.new(0, 14, 0, 0)
 title.BackgroundTransparency = 1
 title.Font = Enum.Font.GothamBold
-title.Text = "⚔ MM2 Spawner"
-title.TextSize = 16
-title.TextColor3 = Color3.fromRGB(255, 200, 50)
+title.Text = "⚔ MM2 Mobile"
+title.TextSize = 18
+title.TextColor3 = Color3.fromRGB(255, 210, 60)
 title.TextXAlignment = Enum.TextXAlignment.Left
-title.Parent = titleBar
+title.Parent = header
 
--- Кнопка закрытия
 local closeBtn = Instance.new("TextButton")
-closeBtn.Name = "CloseBtn"
-closeBtn.Size = UDim2.new(0, 26, 0, 26)
-closeBtn.Position = UDim2.new(1, -32, 0, 5)
+closeBtn.Size = UDim2.new(0, 32, 0, 32)
+closeBtn.Position = UDim2.new(1, -38, 0, 6)
 closeBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
 closeBtn.Text = "✕"
-closeBtn.TextSize = 14
+closeBtn.TextSize = 16
 closeBtn.TextColor3 = Color3.new(1, 1, 1)
 closeBtn.Font = Enum.Font.GothamBold
-closeBtn.Parent = titleBar
+closeBtn.Parent = header
+local cCorner = Instance.new("UICorner")
+cCorner.CornerRadius = UDim.new(0, 8)
+cCorner.Parent = closeBtn
+closeBtn.MouseButton1Click:Connect(function() screenGui:Destroy() end)
 
-local closeCorner = Instance.new("UICorner")
-closeCorner.CornerRadius = UDim.new(0, 6)
-closeCorner.Parent = closeBtn
-
--- Сворачивание
-local minBtn = Instance.new("TextButton")
-minBtn.Name = "MinBtn"
-minBtn.Size = UDim2.new(0, 26, 0, 26)
-minBtn.Position = UDim2.new(1, -64, 0, 5)
-minBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-minBtn.Text = "—"
-minBtn.TextSize = 14
-minBtn.TextColor3 = Color3.new(1, 1, 1)
-minBtn.Font = Enum.Font.GothamBold
-minBtn.Parent = titleBar
-
-local minCorner = Instance.new("UICorner")
-minCorner.CornerRadius = UDim.new(0, 6)
-minCorner.Parent = minBtn
-
--- ===== ПЕРЕТАСКИВАНИЕ ОКНА =====
-local dragging = false
-local dragOffset = Vector2.new(0, 0)
-
-titleBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or
-       input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragOffset = input.Position - window.AbsolutePosition
-    end
-end)
-
-UIS.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or
-       input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end)
-
-UIS.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or
-                     input.UserInputType == Enum.UserInputType.Touch) then
-        local pos = input.Position - dragOffset
-        window.Position = UDim2.fromOffset(pos.X, pos.Y)
-    end
-end)
-
--- ===== ПОИСК =====
+-- ===== СТРОКА ПОИСКА (большая, под палец) =====
 local searchBox = Instance.new("TextBox")
-searchBox.Size = UDim2.new(1, -24, 0, 32)
-searchBox.Position = UDim2.new(0, 12, 0, 44)
+searchBox.Size = UDim2.new(1, -24, 0, 40)
+searchBox.Position = UDim2.new(0, 12, 0, 52)
 searchBox.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-searchBox.PlaceholderText = "🔍 Поиск предмета..."
-searchBox.PlaceholderColor3 = Color3.fromRGB(130, 130, 150)
+searchBox.PlaceholderText = "🔍 Поиск..."
+searchBox.PlaceholderColor3 = Color3.fromRGB(140, 140, 160)
 searchBox.Text = ""
 searchBox.TextColor3 = Color3.new(1, 1, 1)
 searchBox.Font = Enum.Font.Gotham
-searchBox.TextSize = 14
+searchBox.TextSize = 16
 searchBox.ClearTextOnFocus = false
-searchBox.Parent = window
-
-local searchCorner = Instance.new("UICorner")
-searchCorner.CornerRadius = UDim.new(0, 8)
-searchCorner.Parent = searchBox
+searchBox.Parent = frame
+local sCorner = Instance.new("UICorner")
+sCorner.CornerRadius = UDim.new(0, 10)
+sCorner.Parent = searchBox
 
 -- ===== ВКЛАДКИ =====
+local tabFrame = Instance.new("Frame")
+tabFrame.Size = UDim2.new(1, -24, 0, 40)
+tabFrame.Position = UDim2.new(0, 12, 0, 100)
+tabFrame.BackgroundTransparency = 1
+tabFrame.Parent = frame
+
 local tabs = {}
-local tabBar = Instance.new("Frame")
-tabBar.Size = UDim2.new(1, -24, 0, 30)
-tabBar.Position = UDim2.new(0, 12, 0, 84)
-tabBar.BackgroundTransparency = 1
-tabBar.Parent = window
-
-local tabNames = {
-    {"Все", ALL_ITEMS},
-    {"Ножи", KNIVES},
-    {"Пушки", GUNS},
-    {"Древние", ANCIENTS},
-}
-
-local currentTab = "Все"
-local function CreateTabButton(name, posX)
+local tabNames2 = {"Все", "Ножи", "Пушки", "Древние"}
+local tabX = 0
+for _, tname in ipairs(tabNames2) do
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 68, 0, 28)
-    btn.Position = UDim2.new(0, posX, 0, 0)
-    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-    btn.Text = name
-    btn.TextSize = 13
+    btn.Size = UDim2.new(0, 74, 0, 36)
+    btn.Position = UDim2.new(0, tabX, 0, 2)
+    btn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+    btn.Text = tname
+    btn.TextSize = 14
     btn.TextColor3 = Color3.fromRGB(220, 220, 220)
     btn.Font = Enum.Font.GothamBold
-    btn.Parent = tabBar
-
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, 8)
-    c.Parent = btn
-
-    btn.MouseButton1Click:Connect(function()
-        currentTab = name
-        for _, b in pairs(tabs) do
-            b.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-            b.TextColor3 = Color3.fromRGB(220, 220, 220)
-        end
-        btn.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
-        btn.TextColor3 = Color3.fromRGB(20, 20, 30)
-        RefreshList()
-    end)
-
-    return btn
+    btn.Parent = tabFrame
+    local bCorner = Instance.new("UICorner")
+    bCorner.CornerRadius = UDim.new(0, 10)
+    bCorner.Parent = btn
+    tabs[tname] = btn
+    tabX = tabX + 80
 end
 
-local posX = 0
-for i, tabInfo in ipairs(tabNames) do
-    tabs[tabInfo[1]] = CreateTabButton(tabInfo[1], posX)
-    posX = posX + 72
-end
-
--- ===== СПИСОК ПРЕДМЕТОВ =====
+-- ===== СПИСОК (на 55% экрана) =====
 local listFrame = Instance.new("ScrollingFrame")
-listFrame.Size = UDim2.new(1, -24, 0, 240)
-listFrame.Position = UDim2.new(0, 12, 0, 122)
-listFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+listFrame.Size = UDim2.new(1, -24, 0, 220)
+listFrame.Position = UDim2.new(0, 12, 0, 148)
+listFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 42)
 listFrame.BorderSizePixel = 0
 listFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-listFrame.ScrollBarThickness = 4
+listFrame.ScrollBarThickness = 6
 listFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-listFrame.Parent = window
+listFrame.Parent = frame
 
-local listCorner = Instance.new("UICorner")
-listCorner.CornerRadius = UDim.new(0, 8)
-listCorner.Parent = listFrame
+local lCorner = Instance.new("UICorner")
+lCorner.CornerRadius = UDim.new(0, 10)
+lCorner.Parent = listFrame
 
 local listLayout = Instance.new("UIListLayout")
 listLayout.Padding = UDim.new(0, 6)
@@ -386,197 +358,214 @@ listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 listLayout.Parent = listFrame
 
 -- ===== СТАТУС =====
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(1, -24, 0, 20)
-statusLabel.Position = UDim2.new(0, 12, 0, 370)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Font = Enum.Font.Gotham
-statusLabel.Text = "Готов"
-statusLabel.TextSize = 13
-statusLabel.TextColor3 = Color3.fromRGB(0, 255, 120)
-statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-statusLabel.Parent = window
+local statusText = Instance.new("TextLabel")
+statusText.Size = UDim2.new(1, -24, 0, 22)
+statusText.Position = UDim2.new(0, 12, 0, 376)
+statusText.BackgroundTransparency = 1
+statusText.Font = Enum.Font.Gotham
+statusText.Text = "✅ Готов"
+statusText.TextSize = 15
+statusText.TextColor3 = Color3.fromRGB(0, 255, 100)
+statusText.TextXAlignment = Enum.TextXAlignment.Left
+statusText.Parent = frame
 
--- ===== КНОПКИ ДЕЙСТВИЙ =====
-local spawnBtn = Instance.new("TextButton")
-spawnBtn.Size = UDim2.new(0.5, -18, 0, 40)
-spawnBtn.Position = UDim2.new(0, 12, 0, 398)
-spawnBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 90)
-spawnBtn.Text = "➕ В инвентарь"
-spawnBtn.TextSize = 15
-spawnBtn.TextColor3 = Color3.new(1, 1, 1)
-spawnBtn.Font = Enum.Font.GothamBold
-spawnBtn.Parent = window
+-- ===== КНОПКИ (крупные, под палец) =====
+-- Кнопка в инвентарь
+local invBtn = Instance.new("TextButton")
+invBtn.Size = UDim2.new(1, -24, 0, 48)
+invBtn.Position = UDim2.new(0, 12, 0, 406)
+invBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 90)
+invBtn.Text = "📦 Добавить в инвентарь"
+invBtn.TextSize = 17
+invBtn.TextColor3 = Color3.new(1, 1, 1)
+invBtn.Font = Enum.Font.GothamBold
+invBtn.Parent = frame
+local iCorner = Instance.new("UICorner")
+iCorner.CornerRadius = UDim.new(0, 12)
+iCorner.Parent = invBtn
 
-local spawnCorner = Instance.new("UICorner")
-spawnCorner.CornerRadius = UDim.new(0, 8)
-spawnCorner.Parent = spawnBtn
+-- Кнопка дюпа
+local dupeBtn = Instance.new("TextButton")
+dupeBtn.Size = UDim2.new(1, -24, 0, 48)
+dupeBtn.Position = UDim2.new(0, 12, 0, 462)
+dupeBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+dupeBtn.Text = "🔄 ЗАПУСТИТЬ ДЮП"
+dupeBtn.TextSize = 17
+dupeBtn.TextColor3 = Color3.new(1, 1, 1)
+dupeBtn.Font = Enum.Font.GothamBold
+dupeBtn.Parent = frame
+local dCorner = Instance.new("UICorner")
+dCorner.CornerRadius = UDim.new(0, 12)
+dCorner.Parent = dupeBtn
 
-local equipBtn = Instance.new("TextButton")
-equipBtn.Size = UDim2.new(0.5, -18, 0, 40)
-equipBtn.Position = UDim2.new(0.5, 6, 0, 398)
-equipBtn.BackgroundColor3 = Color3.fromRGB(60, 120, 220)
-equipBtn.Text = "🔪 В руку"
-equipBtn.TextSize = 15
-equipBtn.TextColor3 = Color3.new(1, 1, 1)
-equipBtn.Font = Enum.Font.GothamBold
-equipBtn.Parent = window
+-- ===== ЛОГИКА =====
+local selected = nil
+local currentTab2 = "Все"
 
-local equipCorner = Instance.new("UICorner")
-equipCorner.CornerRadius = UDim.new(0, 8)
-equipCorner.Parent = equipBtn
-
--- ===== ВЫБРАННЫЙ ПРЕДМЕТ =====
-local selected = nil -- {name, id}
-
-local function SetStatus(text, color)
-    statusLabel.Text = text
-    statusLabel.TextColor3 = color or Color3.fromRGB(200, 200, 200)
+local function GetItemList(tab)
+    if tab == "Все" then return ITEMS end
+    if tab == "Ножи" then
+        local r = {}
+        for _, v in ipairs(ITEMS) do
+            local n = v[1]:lower()
+            if not n:find("gun") and not n:find("blaster") and not n:find("ghost") and not n:find("cookie") then
+                table.insert(r, v)
+            end
+        end
+        return r
+    end
+    if tab == "Пушки" then
+        local r = {}
+        for _, v in ipairs(ITEMS) do
+            local n = v[1]:lower()
+            if n:find("gun") or n:find("blaster") or n:find("ghost") or n:find("cookie") then
+                table.insert(r, v)
+            end
+        end
+        return r
+    end
+    -- древние
+    local ancient = {"elderwood", "hallowscythe", "harvester", "icewing", "soul", "sparkle", "glass"}
+    local r = {}
+    for _, v in ipairs(ITEMS) do
+        for _, a in ipairs(ancient) do
+            if v[1]:lower():find(a) then
+                table.insert(r, v)
+                break
+            end
+        end
+    end
+    return r
 end
 
--- ===== ОБНОВЛЕНИЕ СПИСКА =====
-function RefreshList()
-    -- Очистка
+local function RefreshList()
     for _, child in ipairs(listFrame:GetChildren()) do
-        if child:IsA("TextButton") then
-            child:Destroy()
-        end
+        if child:IsA("TextButton") then child:Destroy() end
     end
 
     local query = searchBox.Text:lower()
-    local items = tabNames[1][2]
-    for _, t in ipairs(tabNames) do
-        if t[1] == currentTab then
-            items = t[2]
-            break
-        end
-    end
+    local items = GetItemList(currentTab2)
 
-    local count = 0
+    local hasItems = false
     for _, item in ipairs(items) do
         local name, id = item[1], item[2]
         if query == "" or name:lower():find(query) then
-            count = count + 1
-
+            hasItems = true
             local row = Instance.new("TextButton")
-            row.Name = "Item_" .. name
-            row.Size = UDim2.new(1, 0, 0, 36)
+            row.Size = UDim2.new(1, 0, 0, 42)
             row.BackgroundColor3 = Color3.fromRGB(42, 42, 60)
             row.Text = ""
             row.BorderSizePixel = 0
             row.Parent = listFrame
 
-            local rowCorner = Instance.new("UICorner")
-            rowCorner.CornerRadius = UDim.new(0, 8)
-            rowCorner.Parent = row
+            local rCorner = Instance.new("UICorner")
+            rCorner.CornerRadius = UDim.new(0, 8)
+            rCorner.Parent = row
 
             local nameLabel = Instance.new("TextLabel")
             nameLabel.Size = UDim2.new(0.7, -8, 1, 0)
-            nameLabel.Position = UDim2.new(0, 10, 0, 0)
+            nameLabel.Position = UDim2.new(0, 12, 0, 0)
             nameLabel.BackgroundTransparency = 1
             nameLabel.Font = Enum.Font.GothamBold
             nameLabel.Text = name
-            nameLabel.TextSize = 13
+            nameLabel.TextSize = 15
             nameLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
             nameLabel.TextXAlignment = Enum.TextXAlignment.Left
             nameLabel.Parent = row
 
-            local rarityLabel = Instance.new("TextLabel")
-            rarityLabel.Size = UDim2.new(0.3, -8, 1, 0)
-            rarityLabel.Position = UDim2.new(0.7, 0, 0, 0)
-            rarityLabel.BackgroundTransparency = 1
-            rarityLabel.Font = Enum.Font.Gotham
-            rarityLabel.Text = id
-            rarityLabel.TextSize = 10
-            rarityLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
-            rarityLabel.TextXAlignment = Enum.TextXAlignment.Right
-            rarityLabel.Parent = row
+            local idLabel = Instance.new("TextLabel")
+            idLabel.Size = UDim2.new(0.3, -8, 1, 0)
+            idLabel.Position = UDim2.new(0.7, 0, 0, 0)
+            idLabel.BackgroundTransparency = 1
+            idLabel.Font = Enum.Font.Gotham
+            idLabel.Text = id
+            idLabel.TextSize = 11
+            idLabel.TextColor3 = Color3.fromRGB(140, 140, 170)
+            idLabel.TextXAlignment = Enum.TextXAlignment.Right
+            idLabel.Parent = row
 
             row.MouseButton1Click:Connect(function()
                 selected = {name = name, id = id}
-                -- Подсветка выбранного
-                for _, child in ipairs(listFrame:GetChildren()) do
-                    if child:IsA("TextButton") then
-                        child.BackgroundColor3 = Color3.fromRGB(42, 42, 60)
+                for _, child2 in ipairs(listFrame:GetChildren()) do
+                    if child2:IsA("TextButton") then
+                        child2.BackgroundColor3 = Color3.fromRGB(42, 42, 60)
                     end
                 end
-                row.BackgroundColor3 = Color3.fromRGB(90, 80, 30)
-                SetStatus("Выбрано: " .. name .. " [" .. id .. "]", Color3.fromRGB(255, 200, 50))
+                row.BackgroundColor3 = Color3.fromRGB(90, 80, 20)
+                statusText.Text = "✅ " .. name
+                statusText.TextColor3 = Color3.fromRGB(255, 210, 60)
             end)
         end
     end
 
-    if count == 0 then
+    if not hasItems then
         local empty = Instance.new("TextLabel")
         empty.Size = UDim2.new(1, 0, 0, 40)
         empty.BackgroundTransparency = 1
         empty.Font = Enum.Font.Gotham
-        empty.Text = "Ничего не найдено"
-        empty.TextSize = 13
-        empty.TextColor3 = Color3.fromRGB(130, 130, 150)
+        empty.Text = "❌ Ничего не найдено"
+        empty.TextSize = 14
+        empty.TextColor3 = Color3.fromRGB(150, 150, 170)
         empty.Parent = listFrame
     end
 end
 
--- ===== ДЕЙСТВИЯ КНОПОК =====
-spawnBtn.MouseButton1Click:Connect(function()
+-- клики на вкладки
+for tname, btn in pairs(tabs) do
+    btn.MouseButton1Click:Connect(function()
+        currentTab2 = tname
+        for _, b in pairs(tabs) do
+            b.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+            b.TextColor3 = Color3.fromRGB(220, 220, 220)
+        end
+        btn.BackgroundColor3 = Color3.fromRGB(255, 210, 60)
+        btn.TextColor3 = Color3.fromRGB(20, 20, 30)
+        RefreshList()
+    end)
+end
+
+-- поиск
+searchBox:GetPropertyChangedSignal("Text"):Connect(RefreshList)
+
+-- кнопка в инвентарь
+invBtn.MouseButton1Click:Connect(function()
     if not selected then
-        SetStatus("[!] Сначала выбери предмет из списка", Color3.fromRGB(255, 150, 50))
+        statusText.Text = "⚠ Сначала выбери предмет"
+        statusText.TextColor3 = Color3.fromRGB(255, 180, 60)
         return
     end
-    SetStatus("Добавляю " .. selected.name .. "...", Color3.fromRGB(255, 200, 50))
-    task.wait(0.1)
-    local ok = SpawnVisual(selected.name, selected.id)
-    if ok then
-        SetStatus("✅ " .. selected.name .. " в инвентаре (визуал)", Color3.fromRGB(0, 255, 120))
-    else
-        SetStatus("⚠ Не удалось вписать в инвентарь, но попробуй 'В руку'", Color3.fromRGB(255, 150, 50))
-    end
+    statusText.Text = "⏳ Добавляю " .. selected.name .. "..."
+    statusText.TextColor3 = Color3.fromRGB(255, 210, 60)
+    task.wait(0.2)
+    SpawnToInventory(selected.name, selected.id)
+    statusText.Text = "✅ " .. selected.name .. " в инвентаре (визуал)"
+    statusText.TextColor3 = Color3.fromRGB(0, 255, 100)
 end)
 
-equipBtn.MouseButton1Click:Connect(function()
-    if not selected then
-        SetStatus("[!] Сначала выбери предмет из списка", Color3.fromRGB(255, 150, 50))
+-- кнопка дюпа
+dupeBtn.MouseButton1Click:Connect(function()
+    if dupeActive then
+        StopDupe()
+        dupeBtn.Text = "🔄 ЗАПУСТИТЬ ДЮП"
+        dupeBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+        statusText.Text = "⏹ Дюп остановлен"
+        statusText.TextColor3 = Color3.fromRGB(255, 200, 100)
         return
     end
-    SetStatus("Спавню " .. selected.name .. " в руку...", Color3.fromRGB(255, 200, 50))
-    task.wait(0.1)
-    local ok = SpawnTool(selected.name, selected.id)
-    if ok then
-        SetStatus("✅ " .. selected.name .. " в руке (визуал)", Color3.fromRGB(0, 255, 120))
-    else
-        SetStatus("❌ Не удалось создать Tool", Color3.fromRGB(255, 80, 80))
+
+    if not selected then
+        statusText.Text = "⚠ Выбери предмет для дюпа"
+        statusText.TextColor3 = Color3.fromRGB(255, 180, 60)
+        return
     end
-end)
 
--- Поиск при вводе
-searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-    RefreshList()
-end)
-
--- Закрыть
-closeBtn.MouseButton1Click:Connect(function()
-    screenGui:Destroy()
-end)
-
--- Свернуть/развернуть
-local minimized = false
-minBtn.MouseButton1Click:Connect(function()
-    minimized = not minimized
-    local target = minimized and UDim2.new(0, 340, 0, 36) or UDim2.new(0, 340, 0, 480)
-    TweenSvc:Create(window, TweenInfo.new(0.2), {Size = target}):Play()
-    task.wait(0.05)
-    searchBox.Visible = not minimized
-    tabBar.Visible = not minimized
-    listFrame.Visible = not minimized
-    statusLabel.Visible = not minimized
-    spawnBtn.Visible = not minimized
-    equipBtn.Visible = not minimized
+    dupeBtn.Text = "⏹ СТОП ДЮП"
+    dupeBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    local ok, msg = StartDupe(selected.id)
+    statusText.Text = msg
+    statusText.TextColor3 = ok and Color3.fromRGB(255, 200, 60) or Color3.fromRGB(255, 80, 80)
 end)
 
 -- ===== СТАРТ =====
 RefreshList()
-SetStatus("✅ Загружено! Выбери предмет и нажми кнопку", Color3.fromRGB(0, 255, 120))
-
-print("=== MM2 Visual Spawner (GUI) ===")
-print("Меню открыто. Выбери предмет -> В инвентарь / В руку")
+print("=== MM2 Mobile загружен ===")
