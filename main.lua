@@ -1,7 +1,5 @@
 --[[
-  MM2 Dupe Tool — Compact Overlay v2
-  Маленькое окно, поверх всего экрана
-  Тащи пальцем/мышью за шапку
+  MM2 Dupe Tool — Compact Overlay v3 (фикс drag + поверх окон)
 ]]
 
 if _G.MM2DupeOverlay then return end
@@ -11,7 +9,6 @@ local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 local UIS = game:GetService("UserInputService")
 
--- ===== ПЕРЕМЕННЫЕ =====
 local myItems = {}
 local dupeActive = false
 local dupeAllActive = false
@@ -20,7 +17,6 @@ local dupeAllActive = false
 local function ScanInventory()
     local items = {}
 
-    -- Ищем RemoteFunction инвентаря
     for _, obj in ipairs(game:GetDescendants()) do
         if obj:IsA("RemoteFunction") then
             local n = obj.Name:lower()
@@ -38,7 +34,6 @@ local function ScanInventory()
         end
     end
 
-    -- Если пусто — ищем в PlayerData
     if #items == 0 then
         local pd = LP:FindFirstChild("PlayerData") or LP:FindFirstChild("Data")
         if pd then
@@ -51,7 +46,6 @@ local function ScanInventory()
         end
     end
 
-    -- Если всё ещё пусто — StringValue с ID
     if #items == 0 then
         for _, v in ipairs(LP:GetDescendants()) do
             if v:IsA("StringValue") and tonumber(v.Name) and tonumber(v.Name) > 1000000 then
@@ -60,16 +54,13 @@ local function ScanInventory()
         end
     end
 
-    -- Дедупликация
-    local seen = {}
-    local unique = {}
+    local seen, unique = {}, {}
     for _, item in ipairs(items) do
         if not seen[item.id] then
             seen[item.id] = true
             table.insert(unique, item)
         end
     end
-
     return unique
 end
 
@@ -77,7 +68,6 @@ end
 local function DupeSingle(item)
     local count = 0
 
-    -- Метод 1: хук на сохранение
     for _, obj in ipairs(game:GetDescendants()) do
         if obj:IsA("RemoteFunction") then
             local n = obj.Name:lower()
@@ -107,7 +97,6 @@ local function DupeSingle(item)
         end
     end
 
-    -- Метод 2: спамим трейдовые ремоуты
     for _, obj in ipairs(game:GetDescendants()) do
         if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
             local n = obj.Name:lower()
@@ -125,7 +114,6 @@ local function DupeSingle(item)
         end
     end
 
-    -- Метод 3: триггерим синхронизацию
     for _, obj in ipairs(game:GetDescendants()) do
         if obj:IsA("RemoteFunction") and (obj.Name:lower():find("sync") or obj.Name:lower():find("check")) then
             pcall(function() obj:InvokeServer() end)
@@ -135,12 +123,25 @@ local function DupeSingle(item)
     return count > 0
 end
 
--- ===== GUI (поверх всего, маленькое) =====
+-- ===== GUI: парентим в CoreGui / gethui() чтобы было ПОВЕРХ ВСЕГО =====
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "MM2DupeOverlay"
 screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+screenGui.DisplayOrder = 999999   -- максимальный слой
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-screenGui.Parent = LP:WaitForChild("PlayerGui")
+
+-- Executor-специфичный парент: gethui() > CoreGui > PlayerGui (fallback)
+local okParent = pcall(function()
+    if gethui then
+        screenGui.Parent = gethui()
+    else
+        screenGui.Parent = game:GetService("CoreGui")
+    end
+end)
+if not okParent or not screenGui.Parent then
+    screenGui.Parent = LP:WaitForChild("PlayerGui")
+end
 
 local frame = Instance.new("Frame")
 frame.Size = UDim2.new(0, 200, 0, 120)
@@ -149,27 +150,18 @@ frame.BackgroundColor3 = Color3.fromRGB(15, 15, 28)
 frame.BorderSizePixel = 0
 frame.BackgroundTransparency = 0.06
 frame.Active = true
+frame.ZIndex = 999999
 frame.Parent = screenGui
 
 local fCorner = Instance.new("UICorner")
 fCorner.CornerRadius = UDim.new(0, 14)
 fCorner.Parent = frame
 
--- Тень
-local shadow = Instance.new("Frame")
-shadow.Size = UDim2.new(1, 4, 1, 4)
-shadow.Position = UDim2.new(0, -2, 0, -2)
-shadow.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-shadow.BackgroundTransparency = 0.5
-shadow.ZIndex = -1
-shadow.Parent = frame
-
--- Шапка (за неё таскать)
 local header = Instance.new("Frame")
 header.Size = UDim2.new(1, 0, 0, 28)
 header.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
-header.BackgroundTransparency = 0
 header.BorderSizePixel = 0
+header.ZIndex = 999999
 header.Parent = frame
 
 local hCorner = Instance.new("UICorner")
@@ -181,6 +173,7 @@ hBlocker.Size = UDim2.new(1, 0, 0, 8)
 hBlocker.Position = UDim2.new(0, 0, 1, -8)
 hBlocker.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
 hBlocker.BorderSizePixel = 0
+hBlocker.ZIndex = 999999
 hBlocker.Parent = header
 
 local title = Instance.new("TextLabel")
@@ -192,9 +185,10 @@ title.Text = "Dupe Tool"
 title.TextSize = 13
 title.TextColor3 = Color3.fromRGB(255, 210, 60)
 title.TextXAlignment = Enum.TextXAlignment.Left
+title.ZIndex = 999999
 title.Parent = header
 
--- ===== ПЕРЕТАСКИВАНИЕ =====
+-- ===== ПЕРЕТАСКИВАНИЕ (ФИКС Vector3 → Vector2) =====
 local dragging = false
 local dragOffset = Vector2.new(0, 0)
 
@@ -202,7 +196,8 @@ header.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or
        input.UserInputType == Enum.UserInputType.Touch then
         dragging = true
-        dragOffset = input.Position - frame.AbsolutePosition
+        -- ФИКС: input.Position это Vector3, конвертируем в Vector2
+        dragOffset = Vector2.new(input.Position.X, input.Position.Y) - frame.AbsolutePosition
     end
 end)
 
@@ -214,13 +209,15 @@ UIS.InputEnded:Connect(function(input)
 end)
 
 UIS.InputChanged:Connect(function(input)
-    if dragging then
-        local pos = input.Position - dragOffset
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or
+                     input.UserInputType == Enum.UserInputType.Touch) then
+        -- ФИКС: тоже конвертируем в Vector2
+        local pos = Vector2.new(input.Position.X, input.Position.Y) - dragOffset
         frame.Position = UDim2.fromOffset(pos.X, pos.Y)
     end
 end)
 
--- ===== ПОЛЕ СТАТУСА =====
+-- ===== СТАТУС =====
 local status = Instance.new("TextLabel")
 status.Size = UDim2.new(1, -12, 0, 18)
 status.Position = UDim2.new(0, 6, 0, 30)
@@ -230,9 +227,9 @@ status.Text = "Готов"
 status.TextSize = 10
 status.TextColor3 = Color3.fromRGB(0, 255, 100)
 status.TextXAlignment = Enum.TextXAlignment.Left
+status.ZIndex = 999999
 status.Parent = frame
 
--- Количество предметов
 local itemCount = Instance.new("TextLabel")
 itemCount.Size = UDim2.new(1, -12, 0, 14)
 itemCount.Position = UDim2.new(0, 6, 0, 48)
@@ -242,12 +239,10 @@ itemCount.Text = "Вещей: —"
 itemCount.TextSize = 9
 itemCount.TextColor3 = Color3.fromRGB(140, 140, 170)
 itemCount.TextXAlignment = Enum.TextXAlignment.Left
+itemCount.ZIndex = 999999
 itemCount.Parent = frame
 
 -- ===== КНОПКИ =====
--- Строка 1: Дюпнуть | Дюп всё
--- Строка 2: [Проверить инвентарь]
-
 local function MakeBtn(text, posX, posY, w, color)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, w, 0, 22)
@@ -258,12 +253,11 @@ local function MakeBtn(text, posX, posY, w, color)
     btn.TextColor3 = Color3.new(1, 1, 1)
     btn.Font = Enum.Font.GothamBold
     btn.BorderSizePixel = 0
+    btn.ZIndex = 999999
     btn.Parent = frame
-
     local bCorner = Instance.new("UICorner")
     bCorner.CornerRadius = UDim.new(0, 8)
     bCorner.Parent = btn
-
     return btn
 end
 
@@ -271,17 +265,16 @@ local btnW = 88
 local margin = 6
 local startY = 66
 
-local dupeBtn = MakeBtn("🔁 Дюпнуть", margin, startY, btnW, Color3.fromRGB(200, 55, 55))
+local dupeBtn    = MakeBtn("🔁 Дюпнуть", margin, startY, btnW, Color3.fromRGB(200, 55, 55))
 local dupeAllBtn = MakeBtn("🌀 Дюп всё", margin + btnW + 6, startY, btnW, Color3.fromRGB(180, 60, 60))
-local scanBtn = MakeBtn("📋 Инвентарь", margin, startY + 28, 182, Color3.fromRGB(50, 120, 210))
+local scanBtn    = MakeBtn("📋 Инвентарь", margin, startY + 28, 182, Color3.fromRGB(50, 120, 210))
 
--- ===== ЛОГИКА КНОПОК =====
+-- ===== ЛОГИКА =====
 local function setStatus(text, color)
     status.Text = text
     status.TextColor3 = color or Color3.fromRGB(200, 200, 200)
 end
 
--- Дюпнуть (один предмет — первый в списке)
 dupeBtn.MouseButton1Click:Connect(function()
     if dupeActive then
         dupeActive = false
@@ -310,7 +303,6 @@ dupeBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
--- Дюпнуть всё
 dupeAllBtn.MouseButton1Click:Connect(function()
     if dupeAllActive then
         dupeAllActive = false
@@ -344,7 +336,6 @@ dupeAllBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
--- Проверить инвентарь
 scanBtn.MouseButton1Click:Connect(function()
     setStatus("⏳ Сканирую...", Color3.fromRGB(255, 200, 50))
     task.spawn(function()
@@ -362,5 +353,4 @@ end)
 -- ===== СТАРТ =====
 task.wait(1)
 setStatus("✅ Загружен. Жми 📋", Color3.fromRGB(0, 255, 100))
-print("=== Dupe Tool Compact ===")
-print("Жми 'Инвентарь' чтобы просканировать свои вещи")
+print("=== Dupe Tool Compact v3 ===")
