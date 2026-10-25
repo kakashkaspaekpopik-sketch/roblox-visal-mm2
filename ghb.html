@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roblox Ghost Hunters - Поиск и Охота на Призраков</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        ghost: {
+                            dark: '#06070d',
+                            card: '#111422',
+                            star: '#eab308',
+                            dev: '#94a3b8',
+                            admin: '#06b6d4',
+                            robloxplus: '#ef4444'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #06070d;
+            background-image: 
+                radial-gradient(circle at 15% 20%, rgba(234, 179, 8, 0.08) 0%, transparent 35%),
+                radial-gradient(circle at 85% 20%, rgba(6, 182, 212, 0.08) 0%, transparent 35%),
+                radial-gradient(circle at 50% 80%, rgba(239, 68, 68, 0.08) 0%, transparent 40%);
+            background-attachment: fixed;
+            color: #f3f4f6;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .glass-panel {
+            background: rgba(17, 20, 34, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-modal {
+            background: rgba(10, 12, 22, 0.96);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #06070d;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1f2438;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #8b5cf6;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between antialiased">
+
+    <!-- Notification Toast Container -->
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none"></div>
+
+    <!-- Hidden File Input for Data Import -->
+    <input type="file" id="importFileInput" accept=".json" class="hidden" onchange="handleImportFile(event)">
+
+    <!-- Top Navigation Header -->
+    <header class="sticky top-0 z-40 glass-panel border-b border-gray-800/80 px-4 lg:px-8 py-3.5 transition-all duration-300">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+            
+            <!-- Logo & Title -->
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 via-cyan-500 to-red-500 p-0.5 shadow-lg shadow-purple-500/20 flex items-center justify-center">
+                    <div class="w-full h-full bg-ghost-dark rounded-[10px] flex items-center justify-center">
+                        <i class="fa-solid fa-ghost text-xl text-amber-400"></i>
+                    </div>
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-lg md:text-xl tracking-wide bg-gradient-to-r from-amber-400 via-cyan-300 to-red-400 bg-clip-text text-transparent">
+                        ROBLOX GHOST FINDER
+                    </h1>
+                    <p class="text-[10px] text-gray-400 -mt-1 tracking-wider uppercase font-semibold">Live Event Tracker</p>
+                </div>
+            </div>
+
+            <!-- Sync & Data Controls + User Status -->
+            <div class="flex items-center gap-3">
+                
+                <!-- Data Management Menu -->
+                <div class="flex items-center bg-ghost-card border border-gray-800 rounded-xl p-1 gap-1">
+                    <button onclick="exportDataJSON()" class="px-2.5 py-1.5 text-xs text-gray-300 hover:text-amber-400 hover:bg-gray-800/60 rounded-lg transition flex items-center gap-1.5" title="Экспортировать посты в JSON">
+                        <i class="fa-solid fa-download"></i>
+                        <span class="hidden sm:inline">Экспорт</span>
+                    </button>
+                    <button onclick="document.getElementById('importFileInput').click()" class="px-2.5 py-1.5 text-xs text-gray-300 hover:text-cyan-400 hover:bg-gray-800/60 rounded-lg transition flex items-center gap-1.5" title="Импортировать посты из JSON">
+                        <i class="fa-solid fa-upload"></i>
+                        <span class="hidden sm:inline">Имспорт</span>
+                    </button>
+                    <button onclick="clearAllData()" class="px-2 py-1.5 text-xs text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition" title="Сбросить локальные данные">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+
+                <!-- User Auth Area -->
+                <div id="authHeaderArea" class="flex items-center gap-2">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Wrapper -->
+    <main class="max-w-7xl mx-auto px-4 lg:px-8 py-8 w-full flex-grow">
+
+        <!-- Hero Event Banner -->
+        <div class="relative overflow-hidden rounded-3xl glass-panel p-6 md:p-8 mb-8 border border-purple-500/20 shadow-2xl">
+            <div class="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div class="space-y-3 text-center md:text-left">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                        Синхронизация в реальном времени включена
+                    </div>
+                    <h2 class="text-2xl md:text-4xl font-extrabold text-white tracking-tight">
+                        Охота на редких <span class="text-amber-400 underline decoration-cyan-400 decoration-wavy decoration-2">призраков</span> Roblox
+                    </h2>
+                    <p class="text-gray-300 text-sm md:text-base max-w-2xl leading-relaxed">
+                        Публикуй серверы с призраками Star Creator, Developer, Admin и Roblox+ Owner. Все добавленные посты сразу отобразятся у других пользователей!
+                    </p>
+                </div>
+
+                <button id="openCreatePostBtn" onclick="toggleCreatePostModal(true)" class="whitespace-nowrap px-6 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 via-purple-600 to-cyan-500 hover:opacity-95 text-white font-extrabold shadow-lg shadow-purple-600/20 transition hover:scale-105 active:scale-95 flex items-center gap-2.5">
+                    <i class="fa-solid fa-plus-circle text-lg"></i>
+                    <span>Опубликовать сервер</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Ghost Types Showcase Bar -->
+        <section class="mb-8">
+            <h3 class="text-xs font-extrabold text-gray-400 uppercase tracking-widest mb-3">Виды призраков в ивенте:</h3>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" id="ghostTypesShowcase">
+                <!-- Dynamically generated ghost cards -->
+            </div>
+        </section>
+
+        <!-- Controls: Search & Filters -->
+        <section class="mb-8 space-y-4">
+            <div class="flex flex-col md:flex-row gap-4 justify-between items-stretch">
+                <!-- Search Input -->
+                <div class="relative flex-grow">
+                    <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    <input type="text" id="searchInput" oninput="handleSearchOrFilter()" placeholder="Поиск по нику Roblox, VIP-ссылке или описанию..." class="w-full pl-11 pr-4 py-3 bg-ghost-card border border-gray-800 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 transition text-sm">
+                </div>
+
+                <!-- Ghost Type Quick Filter Dropdown -->
+                <div class="relative min-w-[220px]">
+                    <select id="ghostFilterSelect" onchange="handleSearchOrFilter()" class="w-full py-3 px-4 bg-ghost-card border border-gray-800 rounded-xl text-white focus:outline-none focus:border-amber-500 transition appearance-none cursor-pointer text-sm">
+                        <option value="ALL">👻 Все виды призраков</option>
+                        <!-- Options generated dynamically -->
+                    </select>
+                    <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs"></i>
+                </div>
+            </div>
+        </section>
+
+        <!-- Posts Grid List -->
+        <section id="postsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Dynamic Post Cards injected here -->
+        </section>
+
+        <!-- Empty State View -->
+        <div id="emptyState" class="hidden flex-col items-center justify-center py-16 text-center space-y-4">
+            <div class="w-20 h-20 rounded-full bg-gray-800/60 flex items-center justify-center text-4xl text-gray-500">
+                <i class="fa-solid fa-ghost"></i>
+            </div>
+            <h3 class="text-xl font-bold text-gray-300">Постов пока нет</h3>
+            <p class="text-sm text-gray-400 max-w-md">Будьте первым, кто опубликует никнейм или ссылку на сервер с редким призраком!</p>
+            <button onclick="toggleCreatePostModal(true)" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs transition shadow-lg shadow-amber-500/20">
+                Добавить первый сервер
+            </button>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-gray-800/60 py-6 px-4 text-center text-xs text-gray-500 bg-ghost-dark">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <p>© 2026 Roblox Ghost Hunters Hub. Не является официальным ресурсом Roblox Corporation.</p>
+            <div class="flex items-center gap-4">
+                <span class="inline-flex items-center gap-1.5 text-emerald-400 font-medium">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    Синхронизация активна
+                </span>
+            </div>
+        </div>
+    </footer>
+
+
+    <!-- ================= MODALS ================= -->
+
+    <!-- Modal: Auth (Login & Registration) -->
+    <div id="authModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        <div class="glass-modal w-full max-w-md rounded-2xl p-6 md:p-8 shadow-2xl relative border border-amber-500/30">
+            <button onclick="toggleAuthModal(false)" class="absolute top-4 right-4 text-gray-400 hover:text-white text-lg transition w-8 h-8 rounded-lg hover:bg-gray-800/60 flex items-center justify-center">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <!-- Modal Header / Tabs -->
+            <div class="flex border-b border-gray-800 mb-6">
+                <button id="tabLoginBtn" onclick="switchAuthTab('login')" class="flex-1 py-3 font-bold text-center border-b-2 border-amber-500 text-amber-400 transition">
+                    Вход
+                </button>
+                <button id="tabRegisterBtn" onclick="switchAuthTab('register')" class="flex-1 py-3 font-bold text-center border-b-2 border-transparent text-gray-400 hover:text-white transition">
+                    Регистрация
+                </button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">Никнейм в Roblox / Логин</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-user absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                        <input type="text" id="loginUsername" required placeholder="Ваш никнейм" class="w-full pl-10 pr-4 py-2.5 bg-ghost-card border border-gray-800 rounded-xl text-white placeholder-gray-500 text-sm focus:outline-none focus:border-amber-500 transition">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">Пароль</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-lock absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                        <input type="password" id="loginPassword" required placeholder="••••••••" class="w-full pl-10 pr-4 py-2.5 bg-ghost-card border border-gray-800 rounded-xl text-white placeholder-gray-500 text-sm focus:outline-none focus:border-amber-500 transition">
+                    </div>
+                </div>
+                <div class="pt-2">
+                    <button type="submit" class="w-full py-3 bg-amber-500 hover:bg-amber-400 text-black font-extrabold rounded-xl shadow-lg shadow-amber-500/20 transition">
+                        Войти
+                    </button>
+                </div>
+            </form>
+
+            <!-- Registration Form -->
+            <form id="registerForm" onsubmit="handleRegister(event)" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">Никнейм в Roblox</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-user-plus absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                        <input type="text" id="regUsername" required placeholder="Например: GhostHunter2026" class="w-full pl-10 pr-4 py-2.5 bg-ghost-card border border-gray-800 rounded-xl text-white placeholder-gray-500 text-sm focus:outline-none focus:border-amber-500 transition">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">Пароль (Шифрование SHA-256)</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-key absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                        <input type="password" id="regPassword" required minlength="4" placeholder="Минимум 4 символа" class="w-full pl-10 pr-4 py-2.5 bg-ghost-card border border-gray-800 rounded-xl text-white placeholder-gray-500 text-sm focus:outline-none focus:border-amber-500 transition">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">Подтверждение пароля</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-shield-halved absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                        <input type="password" id="regPasswordConfirm" required minlength="4" placeholder="Повторите пароль" class="w-full pl-10 pr-4 py-2.5 bg-ghost-card border border-gray-800 rounded-xl text-white placeholder-gray-500 text-sm focus:outline-none focus:border-amber-500 transition">
+                    </div>
+                </div>
+                <p class="text-[11px] text-gray-400 flex items-center gap-1.5">
+                    <i class="fa-solid fa-shield text-emerald-400"></i>
+                    Пароль хэшируется встроенным Crypto API.
+                </p>
+                <div class="pt-2">
+                    <button type="submit" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold rounded-xl shadow-lg shadow-emerald-500/20 transition">
+                        Зарегистрироваться
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- Modal: Create Post Form -->
+    <div id="createPostModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+        <div class="glass-modal w-full max-w-2xl rounded-2xl p-6 md:p-8 shadow-2xl relative border border-amber-500/30 my-8">
+            <button onclick="toggleCreatePostModal(false)" class="absolute top-4 right-4 text-gray-400 hover:text-white text-lg transition w-8 h-8 rounded-lg hover:bg-gray-800/60 flex items-center justify-center">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <div class="flex items-center gap-3 mb-6">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl font-bold border border-amber-500/30">
+                    <i class="fa-solid fa-plus"></i>
+                </div>
+                <div>
+                    <h3 class="text-xl font-bold text-white">Разместить информацию о сервере</h3>
+                    <p class="text-xs text-gray-400">Укажите ник или ссылку и выберите призраков на сервере</p>
+                </div>
+            </div>
+
+            <form id="createPostForm" onsubmit="handleCreatePost(event)" class="space-y-5">
+                
+                <!-- Roblox Nick or VIP Link -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">Никнейм Roblox или Ссылка на VIP сервер <span class="text-red-400">*</span></label>
+                    <input type="text" id="postRobloxContact" required placeholder="Например: RobloxPlayer123 или https://www.roblox.com/games/..." class="w-full px-4 py-2.5 bg-ghost-card border border-gray-800 rounded-xl text-white placeholder-gray-500 text-sm focus:outline-none focus:border-amber-500 transition">
+                </div>
+
+                <!-- Description/Note -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">Комментарий / Описание</label>
+                    <textarea id="postDescription" rows="2" placeholder="Заходите в профиль, сервер открыт! Призрак возле спавна." class="w-full px-4 py-2.5 bg-ghost-card border border-gray-800 rounded-xl text-white placeholder-gray-500 text-sm focus:outline-none focus:border-amber-500 transition resize-none"></textarea>
+                </div>
+
+                <!-- Ghosts Selection Grid -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">
+                        Какие призраки есть на сервере? (<span id="selectedGhostsCount">0</span> выбрано) <span class="text-red-400">*</span>
+                    </label>
+                    <div id="ghostsCheckboxesGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <!-- Populated dynamically via JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="pt-4 flex items-center justify-end gap-3 border-t border-gray-800">
+                    <button type="button" onclick="toggleCreatePostModal(false)" class="px-5 py-2.5 rounded-xl border border-gray-700 text-gray-300 hover:bg-gray-800 text-sm font-semibold transition">
+                        Отмена
+                    </button>
+                    <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-purple-600 hover:opacity-95 text-white font-extrabold rounded-xl shadow-lg shadow-amber-500/20 text-sm transition">
+                        Опубликовать
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- JavaScript App Logic -->
+    <script>
+        /* ================= 4 SPECIFIC EVENT GHOSTS ================= */
+        
+        const GHOST_DATABASE = [
+            {
+                id: 'ghost_star_creator',
+                name: 'Star Creator Ghost',
+                title: 'От Супер Старов Roblox',
+                bgGlow: 'from-amber-500/20 to-purple-900/40',
+                borderColor: 'border-amber-500/50',
+                badgeBg: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+                svgFaceGlow: '#a855f7', // Purple face glow
+                svgBody: '#eab308'      // Yellow body
+            },
+            {
+                id: 'ghost_developer',
+                name: 'Developer Ghost',
+                title: 'От Девелоперов',
+                bgGlow: 'from-slate-700/30 to-slate-900/40',
+                borderColor: 'border-slate-400/50',
+                badgeBg: 'bg-slate-700/30 text-slate-200 border-slate-500/40',
+                svgFaceGlow: '#f8fafc', // White glowing face
+                svgBody: '#1e293b'      // Dark black body
+            },
+            {
+                id: 'ghost_admin',
+                name: 'Admin Ghost',
+                title: 'От Админов',
+                bgGlow: 'from-blue-600/20 to-cyan-900/40',
+                borderColor: 'border-blue-500/50',
+                badgeBg: 'bg-blue-500/20 text-cyan-300 border-blue-500/40',
+                svgFaceGlow: '#22d3ee', // Cyan glowing face
+                svgBody: '#2563eb'      // Blue body
+            },
+            {
+                id: 'ghost_roblox_plus',
+                name: 'Roblox+ Owner Ghost',
+                title: 'От Владельцев Roblox+',
+                bgGlow: 'from-red-600/20 to-rose-900/40',
+                borderColor: 'border-red-500/50',
+                badgeBg: 'bg-red-500/20 text-red-300 border-red-500/40',
+                svgFaceGlow: '#ef4444', // Red glowing face
+                svgBody: '#f8fafc'      // White body
+            }
+        ];
+
+        /* ================= STATE & BROADCAST CHANNEL ================= */
+        let currentUser = null;
+        let posts = [];
+        
+        // BroadcastChannel for cross-tab realtime sync
+        let syncChannel = null;
+        if ('BroadcastChannel' in window) {
+            syncChannel = new BroadcastChannel('roblox_ghost_sync');
+            syncChannel.onmessage = (event) => {
+                if (event.data && event.data.type === 'DATA_UPDATED') {
+                    reloadPostsFromStorage();
+                    showToast('Данные синхронизированы с другой вкладки', 'info');
+                }
+            };
+        }
+
+        // Fallback for older browsers
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'ghost_app_posts') {
+                reloadPostsFromStorage();
+            }
+        });
+
+        /* ================= INITIALIZATION ================= */
+        window.addEventListener('DOMContentLoaded', () => {
+            initStorage();
+            checkSession();
+            renderAuthHeader();
+            renderGhostShowcase();
+            populateGhostOptions();
+            reloadPostsFromStorage();
+        });
+
+        function initStorage() {
+            if (!localStorage.getItem('ghost_app_users')) {
+                localStorage.setItem('ghost_app_users', JSON.stringify([]));
+            }
+            if (!localStorage.getItem('ghost_app_posts')) {
+                localStorage.setItem('ghost_app_posts', JSON.stringify([]));
+            }
+        }
+
+        function reloadPostsFromStorage() {
+            try {
+                posts = JSON.parse(localStorage.getItem('ghost_app_posts')) || [];
+            } catch(e) {
+                posts = [];
+            }
+            renderPosts();
+        }
+
+        function checkSession() {
+            const session = localStorage.getItem('ghost_app_session');
+            if (session) {
+                try {
+                    currentUser = JSON.parse(session);
+                } catch (e) {
+                    localStorage.removeItem('ghost_app_session');
+                }
+            }
+        }
+
+        function notifyTabsDataChanged() {
+            if (syncChannel) {
+                syncChannel.postMessage({ type: 'DATA_UPDATED' });
+            }
+        }
+
+        /* ================= SVG GHOST ICON GENERATOR ================= */
+
+        function generateGhostSVG(ghost, size = 48) {
+            return `
+                <svg width="${size}" height="${size}" viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg" class="filter drop-shadow-md flex-shrink-0">
+                    <!-- Ghost Body -->
+                    <path d="M50 5 C22 5 10 25 10 50 L10 90 C10 95 18 100 24 93 C30 86 36 93 42 97 C48 101 52 101 58 97 C64 93 70 86 76 93 C82 100 90 95 90 90 L90 50 C90 25 78 5 50 5 Z" fill="${ghost.svgBody}"/>
+                    
+                    <!-- Eyes Cutouts -->
+                    <rect x="25" y="25" width="20" height="15" rx="3" fill="${ghost.svgFaceGlow}"/>
+                    <rect x="55" y="25" width="20" height="15" rx="3" fill="${ghost.svgFaceGlow}"/>
+                    <!-- Nose Cutout -->
+                    <polygon points="50,42 42,52 58,52" fill="${ghost.svgFaceGlow}"/>
+                    <!-- Mouth Cutout -->
+                    <path d="M25 60 H75 V72 H65 V67 H55 V72 H45 V67 H35 V72 H25 Z" fill="${ghost.svgFaceGlow}"/>
+                </svg>
+            `;
+        }
+
+        /* ================= AUTHENTICATION (SHA-256) ================= */
+
+        async function hashPassword(password) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(password);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            const usernameInput = document.getElementById('regUsername').value.trim();
+            const passwordInput = document.getElementById('regPassword').value;
+            const passwordConfirmInput = document.getElementById('regPasswordConfirm').value;
+
+            if (passwordInput !== passwordConfirmInput) {
+                showToast('Пароли не совпадают!', 'error');
+                return;
+            }
+
+            const users = JSON.parse(localStorage.getItem('ghost_app_users')) || [];
+            
+            if (users.some(u => u.username.toLowerCase() === usernameInput.toLowerCase())) {
+                showToast('Пользователь с таким никнеймом уже зарегистрирован', 'error');
+                return;
+            }
+
+            const hashedPassword = await hashPassword(passwordInput);
+
+            const newUser = {
+                username: usernameInput,
+                passwordHash: hashedPassword,
+                createdAt: new Date().toISOString()
+            };
+
+            users.push(newUser);
+            localStorage.setItem('ghost_app_users', JSON.stringify(users));
+
+            currentUser = { username: usernameInput };
+            localStorage.setItem('ghost_app_session', JSON.stringify(currentUser));
+
+            renderAuthHeader();
+            toggleAuthModal(false);
+            showToast(`Успешная регистрация! Добро пожаловать, ${usernameInput}!`, 'success');
+            document.getElementById('registerForm').reset();
+            renderPosts();
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const usernameInput = document.getElementById('loginUsername').value.trim();
+            const passwordInput = document.getElementById('loginPassword').value;
+
+            const users = JSON.parse(localStorage.getItem('ghost_app_users')) || [];
+            const hashedPassword = await hashPassword(passwordInput);
+
+            const userMatch = users.find(u => 
+                u.username.toLowerCase() === usernameInput.toLowerCase() && 
+                u.passwordHash === hashedPassword
+            );
+
+            if (!userMatch) {
+                showToast('Неверный никнейм или пароль', 'error');
+                return;
+            }
+
+            currentUser = { username: userMatch.username };
+            localStorage.setItem('ghost_app_session', JSON.stringify(currentUser));
+
+            renderAuthHeader();
+            toggleAuthModal(false);
+            showToast(`С возвращением, ${currentUser.username}!`, 'success');
+            document.getElementById('loginForm').reset();
+            renderPosts();
+        }
+
+        function handleLogout() {
+            currentUser = null;
+            localStorage.removeItem('ghost_app_session');
+            renderAuthHeader();
+            showToast('Вы вышли из системы', 'info');
+            renderPosts();
+        }
+
+        /* ================= IMPORT / EXPORT / CLEAR ================= */
+
+        function exportDataJSON() {
+            const dataToExport = {
+                version: '1.0',
+                exportedAt: new Date().toISOString(),
+                posts: posts
+            };
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `roblox_ghosts_export_${Date.now()}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+
+            showToast('Экспорт постов завершен!', 'success');
+        }
+
+        function handleImportFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const parsed = JSON.parse(event.target.result);
+                    if (parsed && Array.isArray(parsed.posts)) {
+                        posts = parsed.posts;
+                        savePosts();
+                        showToast(`Успешно импортировано постов: ${posts.length}`, 'success');
+                    } else if (Array.isArray(parsed)) {
+                        posts = parsed;
+                        savePosts();
+                        showToast(`Успешно импортировано постов: ${posts.length}`, 'success');
+                    } else {
+                        showToast('Неверный формат JSON файла', 'error');
+                    }
+                } catch (err) {
+                    showToast('Ошибка при чтении JSON файла', 'error');
+                }
+                e.target.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        function clearAllData() {
+            if (confirm('Вы уверены, что хотите полностью очистить все сохраненные посты?')) {
+                posts = [];
+                savePosts();
+                showToast('Все посты были удалены', 'info');
+            }
+        }
+
+        /* ================= UI RENDERERS ================= */
+
+        function renderAuthHeader() {
+            const container = document.getElementById('authHeaderArea');
+            if (currentUser) {
+                container.innerHTML = `
+                    <div class="flex items-center gap-2 bg-ghost-card border border-amber-500/30 px-3.5 py-1.5 rounded-xl">
+                        <div class="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-300 font-bold flex items-center justify-center text-xs">
+                            ${currentUser.username.charAt(0).toUpperCase()}
+                        </div>
+                        <span class="text-sm font-semibold text-gray-200 hidden sm:inline">${escapeHTML(currentUser.username)}</span>
+                    </div>
+                    <button onclick="handleLogout()" class="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition" title="Выйти">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                    </button>
+                `;
+            } else {
+                container.innerHTML = `
+                    <button onclick="toggleAuthModal(true, 'login')" class="px-3.5 py-2 text-xs font-semibold text-gray-300 hover:text-white transition">
+                        Вход
+                    </button>
+                    <button onclick="toggleAuthModal(true, 'register')" class="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-extrabold shadow-md shadow-amber-500/20 transition">
+                        Регистрация
+                    </button>
+                `;
+            }
+        }
+
+        function renderGhostShowcase() {
+            const showcase = document.getElementById('ghostTypesShowcase');
+            showcase.innerHTML = GHOST_DATABASE.map(ghost => `
+                <div class="p-3 rounded-2xl glass-panel border ${ghost.borderColor} flex items-center gap-3 bg-gradient-to-br ${ghost.bgGlow}">
+                    ${generateGhostSVG(ghost, 42)}
+                    <div class="min-w-0">
+                        <h4 class="text-xs font-extrabold text-white truncate">${ghost.name}</h4>
+                        <p class="text-[10px] text-gray-300 truncate">${ghost.title}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function populateGhostOptions() {
+            // Dropdown filter
+            const filterSelect = document.getElementById('ghostFilterSelect');
+            GHOST_DATABASE.forEach(ghost => {
+                const opt = document.createElement('option');
+                opt.value = ghost.id;
+                opt.textContent = `👻 ${ghost.name} (${ghost.title})`;
+                filterSelect.appendChild(opt);
+            });
+
+            // Modal Checkboxes
+            const grid = document.getElementById('ghostsCheckboxesGrid');
+            grid.innerHTML = '';
+
+            GHOST_DATABASE.forEach(ghost => {
+                const label = document.createElement('label');
+                label.className = `flex items-center gap-3 p-3 rounded-xl border ${ghost.borderColor} bg-ghost-card cursor-pointer transition hover:scale-[1.01] select-none`;
+                label.innerHTML = `
+                    <input type="checkbox" value="${ghost.id}" onchange="updateSelectedGhostsCounter()" class="ghost-checkbox w-4 h-4 rounded text-amber-500 focus:ring-amber-500 bg-gray-800 border-gray-600">
+                    ${generateGhostSVG(ghost, 36)}
+                    <div class="flex flex-col min-w-0">
+                        <span class="text-xs font-bold text-white truncate">${ghost.name}</span>
+                        <span class="text-[10px] text-gray-400 truncate">${ghost.title}</span>
+                    </div>
+                `;
+                grid.appendChild(label);
+            });
+        }
+
+        function updateSelectedGhostsCounter() {
+            const checked = document.querySelectorAll('.ghost-checkbox:checked');
+            document.getElementById('selectedGhostsCount').textContent = checked.length;
+        }
+
+        function toggleAuthModal(show, tab = 'login') {
+            const modal = document.getElementById('authModal');
+            if (show) {
+                modal.classList.remove('hidden');
+                switchAuthTab(tab);
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function switchAuthTab(tab) {
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            const loginBtn = document.getElementById('tabLoginBtn');
+            const regBtn = document.getElementById('tabRegisterBtn');
+
+            if (tab === 'login') {
+                loginForm.classList.remove('hidden');
+                registerForm.classList.add('hidden');
+                loginBtn.className = "flex-1 py-3 font-bold text-center border-b-2 border-amber-500 text-amber-400 transition";
+                regBtn.className = "flex-1 py-3 font-bold text-center border-b-2 border-transparent text-gray-400 hover:text-white transition";
+            } else {
+                loginForm.classList.add('hidden');
+                registerForm.classList.remove('hidden');
+                regBtn.className = "flex-1 py-3 font-bold text-center border-b-2 border-amber-500 text-amber-400 transition";
+                loginBtn.className = "flex-1 py-3 font-bold text-center border-b-2 border-transparent text-gray-400 hover:text-white transition";
+            }
+        }
+
+        function toggleCreatePostModal(show) {
+            if (show && !currentUser) {
+                showToast('Авторизуйтесь, чтобы опубликовать пост', 'warning');
+                toggleAuthModal(true, 'login');
+                return;
+            }
+
+            const modal = document.getElementById('createPostModal');
+            if (show) {
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+                document.getElementById('createPostForm').reset();
+                updateSelectedGhostsCounter();
+            }
+        }
+
+        /* ================= POST CREATION & RENDER ================= */
+
+        function handleCreatePost(e) {
+            e.preventDefault();
+            if (!currentUser) return;
+
+            const contactVal = document.getElementById('postRobloxContact').value.trim();
+            const descVal = document.getElementById('postDescription').value.trim();
+            
+            const checkedBoxes = document.querySelectorAll('.ghost-checkbox:checked');
+            const selectedGhostIds = Array.from(checkedBoxes).map(cb => cb.value);
+
+            if (selectedGhostIds.length === 0) {
+                showToast('Выберите хотя бы одного призрака!', 'error');
+                return;
+            }
+
+            const isLink = contactVal.startsWith('http://') || contactVal.startsWith('https://');
+
+            const newPost = {
+                id: 'post_' + Date.now(),
+                author: currentUser.username,
+                contact: contactVal,
+                isLink: isLink,
+                description: descVal,
+                ghostIds: selectedGhostIds,
+                likes: 0,
+                likedBy: [],
+                createdAt: new Date().toISOString()
+            };
+
+            posts.unshift(newPost);
+            savePosts();
+            renderPosts();
+            toggleCreatePostModal(false);
+            showToast('Информация о сервере успешно опубликована!', 'success');
+        }
+
+        function savePosts() {
+            localStorage.setItem('ghost_app_posts', JSON.stringify(posts));
+            notifyTabsDataChanged();
+        }
+
+        function handleSearchOrFilter() {
+            renderPosts();
+        }
+
+        function renderPosts() {
+            const container = document.getElementById('postsContainer');
+            const emptyState = document.getElementById('emptyState');
+            
+            const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+            const selectedGhostId = document.getElementById('ghostFilterSelect').value;
+
+            const filteredPosts = posts.filter(post => {
+                const matchesSearch = post.contact.toLowerCase().includes(searchQuery) ||
+                                      post.author.toLowerCase().includes(searchQuery) ||
+                                      post.description.toLowerCase().includes(searchQuery);
+
+                const matchesGhost = selectedGhostId === 'ALL' || post.ghostIds.includes(selectedGhostId);
+
+                return matchesSearch && matchesGhost;
+            });
+
+            if (filteredPosts.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+                emptyState.classList.remove('flex');
+            }
+
+            container.innerHTML = filteredPosts.map(post => {
+                const isOwner = currentUser && currentUser.username === post.author;
+                const hasLiked = currentUser && post.likedBy && post.likedBy.includes(currentUser.username);
+
+                const ghostBadgesHtml = post.ghostIds.map(gid => {
+                    const ghost = GHOST_DATABASE.find(g => g.id === gid);
+                    if (!ghost) return '';
+                    return `
+                        <div class="flex items-center gap-2 p-2 rounded-xl border ${ghost.borderColor} ${ghost.badgeBg} bg-opacity-30">
+                            ${generateGhostSVG(ghost, 28)}
+                            <div class="min-w-0">
+                                <div class="text-xs font-bold leading-tight truncate">${escapeHTML(ghost.name)}</div>
+                                <div class="text-[9px] opacity-80 leading-tight truncate">${escapeHTML(ghost.title)}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                const formattedTime = timeAgo(post.createdAt);
+
+                return `
+                    <div class="glass-panel rounded-2xl p-5 border border-gray-800 hover:border-amber-500/40 transition duration-300 flex flex-col justify-between space-y-4 relative">
+                        
+                        <div>
+                            <!-- Header -->
+                            <div class="flex items-center justify-between gap-2 mb-3">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-300 font-bold flex items-center justify-center text-xs">
+                                        ${post.author.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <div class="text-xs font-bold text-white flex items-center gap-1.5">
+                                            ${escapeHTML(post.author)}
+                                            ${isOwner ? '<span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">Вы</span>' : ''}
+                                        </div>
+                                        <div class="text-[10px] text-gray-400">${formattedTime}</div>
+                                    </div>
+                                </div>
+
+                                ${isOwner ? `
+                                    <button onclick="deletePost('${post.id}')" class="text-gray-500 hover:text-red-400 transition p-1.5 rounded-lg hover:bg-red-500/10" title="Удалить пост">
+                                        <i class="fa-solid fa-trash-can text-sm"></i>
+                                    </button>
+                                ` : ''}
+                            </div>
+
+                            <!-- Roblox Contact Link / Copy Box -->
+                            <div class="p-3 bg-ghost-dark/90 rounded-xl border border-gray-800 mb-3 flex items-center justify-between gap-2">
+                                <div class="flex items-center gap-2 overflow-hidden">
+                                    <i class="${post.isLink ? 'fa-solid fa-link text-cyan-400' : 'fa-solid fa-user-tag text-amber-400'} text-sm flex-shrink-0"></i>
+                                    <span class="text-xs font-mono font-medium text-gray-200 truncate">${escapeHTML(post.contact)}</span>
+                                </div>
+                                
+                                ${post.isLink ? `
+                                    <a href="${escapeHTML(post.contact)}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-lg bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/30 text-cyan-300 text-xs font-bold transition flex items-center gap-1 flex-shrink-0">
+                                        <span>Перейти</span>
+                                        <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                                    </a>
+                                ` : `
+                                    <button onclick="copyToClipboard('${escapeJsString(post.contact)}')" class="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-300 text-xs font-bold transition flex items-center gap-1 flex-shrink-0">
+                                        <i class="fa-solid fa-copy text-[10px]"></i>
+                                        <span>Копировать</span>
+                                    </button>
+                                `}
+                            </div>
+
+                            <!-- Post Description -->
+                            ${post.description ? `<p class="text-xs text-gray-300 leading-relaxed mb-4">${escapeHTML(post.description)}</p>` : ''}
+
+                            <!-- Ghosts Badge Section -->
+                            <div class="space-y-2">
+                                <div class="text-[10px] uppercase tracking-wider font-bold text-gray-400">Призраки на сервере:</div>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    ${ghostBadgesHtml}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card Footer -->
+                        <div class="pt-3 border-t border-gray-800/60 flex items-center justify-between text-xs text-gray-400">
+                            <button onclick="toggleLike('${post.id}')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ghost-card hover:bg-gray-800 ${hasLiked ? 'text-red-400' : 'text-gray-400'} transition">
+                                <i class="${hasLiked ? 'fa-solid' : 'fa-regular'} fa-heart text-sm"></i>
+                                <span class="font-bold">${post.likes || 0}</span>
+                            </button>
+                            <span class="text-[11px] text-gray-500 font-mono">ID: ${post.id.slice(-5)}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        /* ================= HELPERS ================= */
+
+        function toggleLike(postId) {
+            if (!currentUser) {
+                showToast('Авторизуйтесь, чтобы ставить лайки', 'warning');
+                toggleAuthModal(true, 'login');
+                return;
+            }
+
+            const post = posts.find(p => p.id === postId);
+            if (!post) return;
+
+            if (!post.likedBy) post.likedBy = [];
+
+            const userIndex = post.likedBy.indexOf(currentUser.username);
+            if (userIndex === -1) {
+                post.likedBy.push(currentUser.username);
+                post.likes = (post.likes || 0) + 1;
+            } else {
+                post.likedBy.splice(userIndex, 1);
+                post.likes = Math.max(0, (post.likes || 1) - 1);
+            }
+
+            savePosts();
+            renderPosts();
+        }
+
+        function deletePost(postId) {
+            const post = posts.find(p => p.id === postId);
+            if (!post) return;
+
+            if (!currentUser || currentUser.username !== post.author) {
+                showToast('Вы не можете удалить чужой пост', 'error');
+                return;
+            }
+
+            posts = posts.filter(p => p.id !== postId);
+            savePosts();
+            renderPosts();
+            showToast('Пост удален', 'info');
+        }
+
+        function copyToClipboard(text) {
+            const tempInput = document.createElement('textarea');
+            tempInput.value = text;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            
+            try {
+                document.execCommand('copy');
+                showToast('Ник скопирован в буфер обмена!', 'success');
+            } catch (err) {
+                showToast('Не удалось скопировать', 'error');
+            }
+            
+            document.body.removeChild(tempInput);
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+
+            let iconClass = 'fa-circle-info text-blue-400';
+            let borderColor = 'border-blue-500/40';
+
+            if (type === 'success') {
+                iconClass = 'fa-circle-check text-emerald-400';
+                borderColor = 'border-emerald-500/40';
+            } else if (type === 'error') {
+                iconClass = 'fa-triangle-exclamation text-red-400';
+                borderColor = 'border-red-500/40';
+            } else if (type === 'warning') {
+                iconClass = 'fa-circle-exclamation text-amber-400';
+                borderColor = 'border-amber-500/40';
+            }
+
+            toast.className = `pointer-events-auto glass-panel p-4 rounded-xl border ${borderColor} shadow-xl flex items-center gap-3 text-xs text-white transform transition duration-300 translate-y-2 opacity-0`;
+            toast.innerHTML = `
+                <i class="fa-solid ${iconClass} text-base flex-shrink-0"></i>
+                <span class="flex-grow font-medium">${escapeHTML(message)}</span>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 10);
+            setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        function timeAgo(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const seconds = Math.floor((now - date) / 1000);
+
+            if (seconds < 60) return 'Только что';
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return `${minutes} мин. назад`;
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return `${hours} ч. назад`;
+            const days = Math.floor(hours / 24);
+            return `${days} дн. назад`;
+        }
+
+        function escapeHTML(str) {
+            if (!str) return '';
+            return str.replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+
+        function escapeJsString(str) {
+            if (!str) return '';
+            return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+        }
+    </script>
+</body>
+</html>
